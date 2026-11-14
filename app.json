@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "Iron Man",
+    "slug": "iron-man-tracker",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.prins.ironmantracker",
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "location",
+          "audio"
+        ],
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Iron Man records your run, ride or swim route while the screen is locked.",
+          "locationWhenInUsePermission": "Iron Man uses your location to record your route.",
+          "isIosBackgroundLocationEnabled": true,
+          "motionUsagePermission": "Iron Man counts your steps to show your running cadence."
+        }
+      ],
+      "expo-sqlite",
+      "expo-secure-store",
+      "expo-sharing",
+      "expo-build-properties",
+      "expo-font"
+    ],
+    "backgroundColor": "#0B0B0D"
+  }
+}
