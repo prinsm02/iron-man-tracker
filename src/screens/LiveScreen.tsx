@@ -4,7 +4,7 @@ import { Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Polyline } from 'react-native-maps';
 import { useKeepAwake } from 'expo-keep-awake';
-import { Btn, C, Hero, HoldBtn, Stat, T } from '../ui/kit.tsx';
+import { BackBar, Btn, C, Hero, HoldBtn, Stat, T } from '../ui/kit.tsx';
 import { activeSeconds, currentSpeed, getLive, onLive, pause, resume, finish, type Live } from '../tracking/tracker.ts';
 import { getSettings } from '../lib/settings.ts';
 import { fmtDuration, fmtPace, kmh, SPORT_LABEL } from '../lib/geo.ts';
@@ -16,7 +16,7 @@ function KeepAwake() {
 
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
 
-export default function LiveScreen({ onFinished }: { onFinished: (id: string | null) => void }) {
+export default function LiveScreen({ onFinished, onBack }: { onFinished: (id: string | null) => void; onBack: () => void }) {
   const s = getSettings();
   const [live, setLive] = useState<Live>(getLive());
   const [, setNow] = useState(0);
@@ -48,6 +48,7 @@ export default function LiveScreen({ onFinished }: { onFinished: (id: string | n
   return (
     <SafeAreaView style={T.screen}>
       {s.keepScreenOn ? <KeepAwake /> : null}
+      <BackBar onBack={onBack} title="keeps recording" />
       <View style={{ flex: 1, padding: 20, gap: 14 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
           <Text style={[T.label, { color: !live.gpsReady || paused ? C.warn : C.coral }]}>● {!live.gpsReady ? 'Finding GPS, stand still' : live.status === 'paused' ? 'Paused' : live.autoPaused ? 'Auto-paused' : SPORT_LABEL[live.sport]}</Text>
@@ -55,8 +56,8 @@ export default function LiveScreen({ onFinished }: { onFinished: (id: string | n
         </View>
 
         {s.showMap ? (
-          <MapView ref={map} style={{ height: 150, borderRadius: 12 }} showsUserLocation userInterfaceStyle="dark" mapType="mutedStandard"
-            initialCamera={{ center: live.path[0] ?? { latitude: -26.18, longitude: 28.0 }, zoom: 16, heading: 0, pitch: 0 }}>
+          <MapView ref={map} style={{ height: 150, borderRadius: 12 }} showsUserLocation followsUserLocation={!live.path.length} userInterfaceStyle="dark" mapType="mutedStandard"
+            initialCamera={{ center: live.path[0] ?? { latitude: 0, longitude: 0 }, zoom: 16, heading: 0, pitch: 0 }}>
             {live.path.length > 1 ? <Polyline coordinates={live.path} strokeColor={C.coral} strokeWidth={4} /> : null}
           </MapView>
         ) : null}

@@ -1,13 +1,19 @@
 import React, { useState } from 'react';
-import { FlatList, Pressable, Text, View } from 'react-native';
+import { Alert, FlatList, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Btn, C, Chip, T } from '../ui/kit.tsx';
-import { listFinished, type SessionRow } from '../lib/db.ts';
+import { BackBar, C, Chip, T } from '../ui/kit.tsx';
+import { deleteSession, listFinished, type SessionRow } from '../lib/db.ts';
 import { fmtDuration, fmtPace, kmh, SPORT_LABEL, type Sport, type Stats } from '../lib/geo.ts';
 import type { SessionMeta } from '../lib/export.ts';
 
 export default function History({ onOpen, onBack }: { onOpen: (id: string) => void; onBack: () => void }) {
   const [filter, setFilter] = useState<Sport | 'all'>('all');
+  const [, setVersion] = useState(0);
+  const askDelete = (item: SessionRow) =>
+    Alert.alert('Delete this session?', 'It is removed from the phone. Anything already uploaded to GitHub stays there.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => { deleteSession(item.id); setVersion((v) => v + 1); } },
+    ]);
   const rows = listFinished().filter((r) => filter === 'all' || r.sport === filter);
 
   const line = (r: SessionRow) => {
@@ -28,7 +34,8 @@ export default function History({ onOpen, onBack }: { onOpen: (id: string) => vo
 
   return (
     <SafeAreaView style={T.screen}>
-      <View style={{ padding: 20, gap: 12 }}>
+      <BackBar onBack={onBack} />
+      <View style={{ padding: 20, paddingTop: 4, gap: 12 }}>
         <Text style={T.h1}>History</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           {(['all', 'run', 'bike', 'swim_open', 'swim_pool'] as const).map((f) => (
@@ -45,7 +52,7 @@ export default function History({ onOpen, onBack }: { onOpen: (id: string) => vo
           const l = line(item);
           const d = new Date(item.started_at).toLocaleDateString('en-ZA', { weekday: 'short', day: 'numeric', month: 'short' });
           return (
-            <Pressable onPress={() => onOpen(item.id)} style={({ pressed }) => [T.card, { backgroundColor: index % 2 ? C.card2 : C.card, opacity: pressed ? 0.7 : 1 }]}>
+            <Pressable onPress={() => onOpen(item.id)} onLongPress={() => askDelete(item)} delayLongPress={600} style={({ pressed }) => [T.card, { backgroundColor: index % 2 ? C.card2 : C.card, opacity: pressed ? 0.7 : 1 }]}>
               <Text style={T.label}>{d} · {SPORT_LABEL[item.sport]}{l.pb ? <Text style={{ color: C.coral }}> · PB</Text> : null}</Text>
               <Text style={[l.pb ? T.big : T.num, { fontSize: 24, marginTop: 4 }]}>{l.title.split(' · ')[0]}</Text>
               <Text style={T.small}>{l.title.split(' · ')[1]} · {l.sub}</Text>
@@ -53,9 +60,6 @@ export default function History({ onOpen, onBack }: { onOpen: (id: string) => vo
           );
         }}
       />
-      <View style={{ padding: 20 }}>
-        <Btn title="BACK" kind="ghost" onPress={onBack} />
-      </View>
     </SafeAreaView>
   );
 }

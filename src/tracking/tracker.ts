@@ -9,6 +9,8 @@ import type { Fix, Sport, TrackPoint, Stats } from '../lib/geo.ts';
 import { createSession, insertPoint, getPoints, setStatus, openSession, finishSession } from '../lib/db.ts';
 import type { SessionMeta } from '../lib/export.ts';
 import { getSettings } from '../lib/settings.ts';
+import { allRows } from '../lib/history.ts';
+import { newRecords } from '../lib/records.ts';
 
 export const TASK = 'ironman-location';
 
@@ -277,8 +279,22 @@ export async function finish(): Promise<{ id: string; stats: Stats } | null> {
       // cadence is optional
     }
   }
+  // new personal record? compare with all history before this session
+  let pbText = '';
+  try {
+    const d = new Date(live.startedAt);
+    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const sport = live.sport === 'run' ? 'run' : live.sport === 'bike' ? 'bike' : 'swim';
+    const beat = newRecords(allRows(id), { date, sport, km: stats.distanceM / 1000, sec: stats.movingS });
+    if (beat.length && stats.distanceM > 1000) {
+      meta.pb = true;
+      pbText = ` New personal record: ${beat.map((b) => b.label).join(', ')}.`;
+    }
+  } catch {
+    // records are optional
+  }
   finishSession(id, Date.now(), meta, stats);
-  speak(`Finished. ${(stats.distanceM / 1000).toFixed(2)} kilometres.`);
+  speak(`Finished. ${(stats.distanceM / 1000).toFixed(2)} kilometres.${pbText}`);
   live = blank();
   emit();
   return { id, stats };

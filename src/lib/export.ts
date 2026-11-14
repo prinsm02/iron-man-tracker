@@ -6,7 +6,7 @@ export interface SessionMeta {
   id: string;
   sport: Sport;
   startedAt: number; // ms
-  route: string; // free text, e.g. "Melville loop"
+  route: string; // free text, e.g. "River loop"
   runType: string; // Easy / Tempo / Long / Intervals / Race (run) or Session Type (bike)
   bike: string; // bike name for rides
   notes: string;
@@ -71,11 +71,11 @@ const csvCell = (v: string | number) => {
 };
 const row = (cells: (string | number)[]) => cells.map(csvCell).join(',');
 
-// Same columns as "01 Matthew Running Log.csv", plus Source at the end.
+// Same columns as a typical running log, plus Source at the end.
 export const RUN_HEADER =
   'Date,Day,Route / Location,Distance (km),Time,Avg Pace (min/km),Avg Speed (km/h),Max Speed (km/h),Elev Gain (m),Elev Loss (m),Run Type,KM1,KM2,KM3,KM4,KM5,Notes,PB?,Cadence (spm),Calories,Source';
 
-// Same columns as "02 Matthew Cycling Log.xlsx", plus extras at the end.
+// Same columns as a typical cycling log, plus extras at the end.
 export const RIDE_HEADER =
   'Date,Day,Type,Bike,Distance (km),Duration,Avg Speed (km/h),Location,Session Type,Notes,Max Speed (km/h),Elev Gain (m),Calories,Source';
 

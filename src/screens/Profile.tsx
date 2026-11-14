@@ -1,44 +1,48 @@
-// Profile: name, weight, bike, and the user's own events (stored only on this phone).
+// Profile: photo, name, weight, bike, personal records. (Events have their own page.)
 import React, { useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Btn, C, Chip, T } from '../ui/kit.tsx';
-import { getSettings, saveSettings, type AppEvent } from '../lib/settings.ts';
-import { daysTo, validDate } from '../lib/events.ts';
+import * as ImagePicker from 'expo-image-picker';
+import { File, Paths } from 'expo-file-system';
+import { Avatar, BackBar, Btn, C, T } from '../ui/kit.tsx';
+import { getSettings, saveSettings } from '../lib/settings.ts';
+import { allRows } from '../lib/history.ts';
+import { computeRecords } from '../lib/records.ts';
 
-const KINDS = ['Run', 'Bike', 'Swim', 'Triathlon', 'Other'];
-
-export default function Profile({ onBack }: { onBack: () => void }) {
+export default function Profile({ onBack, onEvents }: { onBack: () => void; onEvents: () => void }) {
   const s0 = getSettings();
   const [name, setName] = useState(s0.name);
   const [weight, setWeight] = useState(String(s0.weightKg));
   const [bike, setBike] = useState(s0.bikeName);
-  const [events, setEvents] = useState<AppEvent[]>(s0.events);
-  const [draft, setDraft] = useState<AppEvent | null>(null);
+  const [photo, setPhoto] = useState(s0.photoUri);
+  const records = computeRecords(allRows());
+
+  const pickPhoto = async () => {
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.7 });
+    if (res.canceled || !res.assets?.[0]) return;
+    // keep a copy inside the app, so the photo still shows if it is deleted from Photos
+    const src = new File(res.assets[0].uri);
+    const dest = new File(Paths.document, `profile-${Date.now()}.jpg`);
+    src.copy(dest);
+    setPhoto(dest.uri);
+    await saveSettings({ photoUri: dest.uri });
+  };
 
   const save = async () => {
     const w = parseFloat(weight);
-    await saveSettings({ name: name.trim(), bikeName: bike.trim(), weightKg: w > 30 && w < 200 ? w : s0.weightKg, events });
-    onBack();
+    await saveSettings({ name: name.trim(), bikeName: bike.trim(), weightKg: w > 30 && w < 200 ? w : s0.weightKg });
   };
-
-  const saveDraft = () => {
-    if (!draft) return;
-    if (!draft.name.trim() || !validDate(draft.date)) {
-      Alert.alert('Check the event', 'Give it a name and a date like 2026-11-29.');
-      return;
-    }
-    const rest = events.filter((e) => e.id !== draft.id);
-    setEvents([...rest, { ...draft, name: draft.name.trim() }].sort((a, b) => a.date.localeCompare(b.date)));
-    setDraft(null);
-  };
-
-  const sorted = [...events].sort((a, b) => a.date.localeCompare(b.date));
 
   return (
     <SafeAreaView style={T.screen}>
-      <ScrollView contentContainerStyle={{ padding: 20, gap: 14, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
-        <Text style={T.h1}>Profile</Text>
+      <BackBar onBack={async () => { await save(); onBack(); }} />
+      <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 4, gap: 14, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+        <View style={{ alignItems: 'center', gap: 8 }}>
+          <Pressable onPress={pickPhoto}>
+            <Avatar size={96} uri={photo} name={name} />
+          </Pressable>
+          <Pressable onPress={pickPhoto} hitSlop={8}><Text style={{ color: C.coral, fontWeight: '600' }}>{photo ? 'Change photo' : 'Add photo'}</Text></Pressable>
+        </View>
 
         <Text style={T.label}>Name</Text>
         <TextInput value={name} onChangeText={setName} placeholder="Your name" placeholderTextColor={C.dim} style={input} />
@@ -53,42 +57,21 @@ export default function Profile({ onBack }: { onBack: () => void }) {
           </View>
         </View>
 
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
-          <Text style={T.label}>My events</Text>
-          <Pressable onPress={() => setDraft({ id: `${Date.now()}`, name: '', date: '', kind: 'Run' })} hitSlop={10}>
-            <Text style={{ color: C.coral, fontWeight: '700' }}>+ Add</Text>
-          </Pressable>
-        </View>
-        {!sorted.length && !draft ? <Text style={T.small}>No events yet. Add a race or goal to see a countdown on the home screen.</Text> : null}
-        {sorted.map((e, i) => {
-          const d = daysTo(e.date);
-          return (
-            <Pressable key={e.id} onPress={() => setDraft(e)} style={[T.card, { backgroundColor: i % 2 ? C.card2 : C.card, flexDirection: 'row', alignItems: 'center' }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={T.label}>{e.kind} · {e.date}</Text>
-                <Text style={[T.body, { fontWeight: '700', marginTop: 2 }]}>{e.name}</Text>
+        {records.length ? (
+          <View style={{ marginTop: 8 }}>
+            <Text style={[T.label, { marginBottom: 6 }]}>Personal records</Text>
+            {records.map((r) => (
+              <View key={r.key} style={{ flexDirection: 'row', alignItems: 'baseline', paddingVertical: 9, borderBottomWidth: 1, borderColor: C.line }}>
+                <Text style={[T.small, { flex: 1, color: C.text, fontSize: 14 }]}>{r.label}</Text>
+                <Text style={[T.big, { fontSize: 18 }]}>{r.value}</Text>
+                <Text style={[T.small, { width: 86, textAlign: 'right' }]}>{r.date}</Text>
               </View>
-              <Text style={[d >= 0 ? T.big : T.small, { fontSize: d >= 0 ? 22 : 13 }]}>{d >= 0 ? `${d}d` : 'done'}</Text>
-            </Pressable>
-          );
-        })}
-
-        {draft ? (
-          <View style={[T.card, { gap: 10, borderColor: C.red }]}>
-            <TextInput value={draft.name} onChangeText={(t) => setDraft({ ...draft, name: t })} placeholder="Event name" placeholderTextColor={C.dim} style={input} />
-            <TextInput value={draft.date} onChangeText={(t) => setDraft({ ...draft, date: t })} placeholder="Date: YYYY-MM-DD" placeholderTextColor={C.dim} keyboardType="numbers-and-punctuation" style={input} />
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-              {KINDS.map((k) => <Chip key={k} label={k} selected={draft.kind === k} onPress={() => setDraft({ ...draft, kind: k })} />)}
-            </View>
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <Btn title="Save event" onPress={saveDraft} style={{ flex: 2 }} />
-              <Btn title={events.some((e) => e.id === draft.id) ? 'Delete' : 'Cancel'} kind="ghost" style={{ flex: 1 }}
-                onPress={() => { setEvents(events.filter((e) => e.id !== draft.id)); setDraft(null); }} />
-            </View>
+            ))}
           </View>
-        ) : null}
+        ) : <Text style={T.small}>Records appear once you have sessions (or your history syncs).</Text>}
 
-        <Btn title="Done" onPress={save} style={{ marginTop: 16 }} />
+        <Btn title="My events" kind="ghost" onPress={async () => { await save(); onEvents(); }} style={{ marginTop: 10 }} />
+        <Btn title="Done" onPress={async () => { await save(); onBack(); }} />
       </ScrollView>
     </SafeAreaView>
   );

@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Btn, C, Chip, T } from '../ui/kit.tsx';
+import { BackBar, Btn, C, Chip, T } from '../ui/kit.tsx';
 import { getSettings, saveSettings } from '../lib/settings.ts';
 import { createSession, finishSession } from '../lib/db.ts';
 import { computeStats, estimateKcal } from '../lib/geo.ts';
@@ -35,6 +35,7 @@ export default function PoolLog({ onSaved, onBack }: { onSaved: (id: string) => 
 
   return (
     <SafeAreaView style={T.screen}>
+      <BackBar onBack={onBack} />
       <ScrollView contentContainerStyle={{ padding: 20, gap: 14 }}>
         <Text style={T.h1}>Pool swim</Text>
         <Text style={T.label}>Pool length</Text>

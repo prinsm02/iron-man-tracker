@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { Btn, C, Chip, GBar, Hero, Stat, T } from '../ui/kit.tsx';
+import { BackBar, Btn, C, Chip, GBar, Hero, Stat, T } from '../ui/kit.tsx';
 import Chart from '../ui/Chart.tsx';
 import { deleteSession, getPoints, getSession, updateMeta } from '../lib/db.ts';
 import { buildGpx, baseName, type SessionMeta } from '../lib/export.ts';
@@ -155,7 +155,8 @@ export default function SessionScreen({ id, onClose, fresh }: { id: string; onCl
 
   return (
     <SafeAreaView style={T.screen}>
-      <ScrollView contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: 40 }}>
+      <BackBar onBack={() => { updateMeta(id, meta, stats); onClose(); }} />
+      <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 4, gap: 18, paddingBottom: 40 }}>
         <View>
           <Text style={T.label}>{new Date(meta.startedAt).toLocaleDateString('en-ZA', { weekday: 'short', day: 'numeric', month: 'short' })}</Text>
           <Text style={T.h1}>{SPORT_LABEL[meta.sport]}</Text>

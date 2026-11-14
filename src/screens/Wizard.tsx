@@ -2,9 +2,9 @@
 import React, { useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Btn, C, Choice, T } from '../ui/kit.tsx';
+import { BackBar, Btn, C, Choice, T } from '../ui/kit.tsx';
 import { DEFAULTS, saveSettings, type Settings } from '../lib/settings.ts';
-import { SPORT_LABEL, type Sport } from '../lib/geo.ts';
+import { SPORT_LABEL, SPORT_ORDER, ordered, type Sport } from '../lib/geo.ts';
 import { ensurePermissions } from '../tracking/tracker.ts';
 
 type Opt<V> = { label: string; hint?: string; value: V };
@@ -25,14 +25,14 @@ export default function Wizard({ onDone }: { onDone: () => void }) {
       title: 'Which sports do you train?',
       sub: 'Pick all that apply.',
       ok: draft.sports.length > 0,
-      body: (['run', 'bike', 'swim_open', 'swim_pool'] as Sport[]).map((s) => (
+      body: SPORT_ORDER.map((s) => (
         <Choice key={s} multi label={SPORT_LABEL[s]} selected={draft.sports.includes(s)} onPress={() => toggleSport(s)}
-          hint={s === 'swim_open' ? 'GPS, phone in a dry bag' : s === 'swim_pool' ? 'Enter laps by hand' : undefined} />
+          hint={s === 'swim_open' ? 'Outdoor swim with GPS, phone in a dry bag' : s === 'swim_pool' ? 'Pool lengths entered by hand' : undefined} />
       )),
     },
     {
       title: 'Which one do you do most?',
-      body: single(draft.sports.map((s) => ({ label: SPORT_LABEL[s], value: s })), draft.defaultSport, (v) => set({ defaultSport: v })),
+      body: single(ordered(draft.sports).map((s) => ({ label: SPORT_LABEL[s], value: s })), draft.defaultSport, (v) => set({ defaultSport: v })),
     },
     {
       title: 'What should the live screen show?',
@@ -93,6 +93,7 @@ export default function Wizard({ onDone }: { onDone: () => void }) {
 
   return (
     <SafeAreaView style={T.screen}>
+      {page > 0 ? <BackBar onBack={() => setPage(page - 1)} /> : null}
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
         <Text style={[T.label, { color: C.gold }]}>Set-up {page + 1} of {pages.length}</Text>
         <Text style={[T.h1, { marginTop: 8 }]}>{p.title}</Text>

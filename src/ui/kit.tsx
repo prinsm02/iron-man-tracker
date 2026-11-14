@@ -1,8 +1,8 @@
-// Look = Matthew's Running Dashboard Pro: near-black, #1a1a1a / #111 cards with #222 borders,
+// Look = a dark training dashboard: near-black, #1a1a1a / #111 cards with #222 borders,
 // coral numbers #ff6b6b with a soft red glow, small grey uppercase labels, red bar with a white dot.
 // Rule: one hero number per screen, very few words.
 import React, { useRef, useState } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View, type ViewStyle, type TextStyle } from 'react-native';
+import { Animated, Image, Pressable, StyleSheet, Text, View, type ViewStyle, type TextStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 export const C = {
@@ -155,3 +155,26 @@ const s = StyleSheet.create({
   dot: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: C.dim },
   unit: { color: C.dim, fontSize: 14, fontWeight: '600', textShadowRadius: 0 },
 });
+
+/** Top-left back button used on every screen except Home and the live recording screen. */
+export function BackBar({ onBack, title }: { onBack: () => void; title?: string }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingTop: 4, paddingBottom: 4, minHeight: 44 }}>
+      <Pressable onPress={onBack} hitSlop={14} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 6, opacity: pressed ? 0.5 : 1 })}>
+        <Text style={{ color: C.coral, fontSize: 26, lineHeight: 28, marginTop: -2 }}>‹</Text>
+        <Text style={{ color: C.coral, fontSize: 16, fontWeight: '600', marginLeft: 4 }}>Back</Text>
+      </Pressable>
+      {title ? <Text style={[T.label, { marginLeft: 8 }]}>{title}</Text> : null}
+    </View>
+  );
+}
+
+/** Round profile picture (the user's photo, or their initials). */
+export function Avatar({ size = 36, uri, name }: { size?: number; uri?: string; name?: string }) {
+  const initials = (name || 'Me').split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+  return (
+    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+      {uri ? <Image source={{ uri }} style={{ width: size, height: size }} /> : <Text style={{ color: C.coral, fontWeight: '700', fontSize: size * 0.38 }}>{initials}</Text>}
+    </View>
+  );
+}

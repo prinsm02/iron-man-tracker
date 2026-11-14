@@ -15,11 +15,15 @@ export interface TrackPoint extends Fix {
   moving: boolean; // false = auto-paused or manually paused; excluded from distance
 }
 
+/** Fixed display order everywhere: Run, Bike, Swim, Pool. */
+export const SPORT_ORDER: Sport[] = ['run', 'bike', 'swim_open', 'swim_pool'];
+export const ordered = (list: Sport[]) => SPORT_ORDER.filter((s) => list.includes(s));
+
 export const SPORT_LABEL: Record<Sport, string> = {
   run: 'Run',
   bike: 'Bike',
-  swim_open: 'Open-water swim',
-  swim_pool: 'Pool swim',
+  swim_open: 'Swim',
+  swim_pool: 'Pool',
 };
 
 // Max believable speed per sport (m/s). Anything faster between two fixes is a GPS jump.

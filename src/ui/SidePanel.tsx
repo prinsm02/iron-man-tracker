@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { C, T } from './kit.tsx';
 import { getSettings } from '../lib/settings.ts';
 
-export type PanelTarget = 'profile' | 'history' | 'settings' | 'sync';
+export type PanelTarget = 'profile' | 'events' | 'stats' | 'history' | 'settings' | 'sync';
 
 export default function SidePanel({ open, onClose, onGo }: { open: boolean; onClose: () => void; onGo: (t: PanelTarget) => void }) {
   const x = useRef(new Animated.Value(-300)).current;
@@ -14,7 +14,9 @@ export default function SidePanel({ open, onClose, onGo }: { open: boolean; onCl
   }, [open]);
   const s = getSettings();
   const items: { key: PanelTarget; label: string; sub: string }[] = [
-    { key: 'profile', label: 'Profile & events', sub: s.events.length ? `${s.events.length} event${s.events.length > 1 ? 's' : ''}` : 'Name, weight, bike, races' },
+    { key: 'profile', label: 'Profile', sub: 'Photo, name, weight, bike, records' },
+    { key: 'events', label: 'Events', sub: s.events.length ? `${s.events.length} of yours + what is coming up` : 'Your races + what is coming up' },
+    { key: 'stats', label: 'Stats', sub: 'Charts of your training' },
     { key: 'history', label: 'History', sub: 'Every session' },
     { key: 'sync', label: 'Upload now', sub: s.syncEnabled ? 'Send new sessions to GitHub' : 'GitHub sync is off' },
     { key: 'settings', label: 'Settings', sub: 'Live screen, voice, GPS, GitHub' },

@@ -5,7 +5,7 @@ import type { Sport } from './geo.ts';
 
 export interface AppEvent {
   id: string;
-  name: string; // e.g. 'Soweto Marathon'
+  name: string; // e.g. 'City Marathon'
   date: string; // YYYY-MM-DD
   kind: string; // Run / Bike / Swim / Triathlon / Other
 }
@@ -29,6 +29,8 @@ export interface Settings {
   weightKg: number; // for the calorie estimate
   name: string; // shown on the profile; empty until the user sets it
   events: AppEvent[]; // the user's own races and goals, stored only on this phone
+  deletedEventIds: string[]; // events removed on the phone, so a sync does not bring them back
+  photoUri: string; // profile photo copied into the app's own storage (never uploaded)
 }
 
 export const DEFAULTS: Settings = {
@@ -44,12 +46,14 @@ export const DEFAULTS: Settings = {
   autoPause: true,
   keepScreenOn: false,
   syncEnabled: false,
-  githubRepo: 'prinsm02/iron-man-data',
+  githubRepo: '', // your-username/your-private-data-repo
   bikeName: '',
   poolLengthM: 25,
   weightKg: 70,
   name: '',
   events: [],
+  deletedEventIds: [],
+  photoUri: '',
 };
 
 const KEY = 'ironman.settings.v1';
