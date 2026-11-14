@@ -11,6 +11,8 @@ export default function SettingsScreen({ onBack, onRerunWizard }: { onBack: () =
   const [token, setTok] = useState('');
   const [hasToken, setHasToken] = useState(false);
   const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState<'test' | 'upload' | null>(null);
+  const [weightText, setWeightText] = useState(String(getSettings().weightKg));
 
   useEffect(() => { getToken().then((t) => setHasToken(!!t)); }, []);
   const set = async (p: Partial<Settings>) => setS(await saveSettings(p));
@@ -65,7 +67,14 @@ export default function SettingsScreen({ onBack, onRerunWizard }: { onBack: () =
         <Pick label="Swim: every" options={[100, 250, 500]} value={s.voiceEveryMSwim} onPick={(v) => set({ voiceEveryMSwim: v })} fmt={(v) => `${v} m`} />
 
         <Text style={[T.label, { marginTop: 24, color: C.gold }]}>Weight (kg, for calories)</Text>
-        <TextInput value={String(s.weightKg)} keyboardType="decimal-pad" onChangeText={(t) => { const v = parseFloat(t); if (v > 30 && v < 200) set({ weightKg: v }); }} style={input} />
+        <TextInput value={weightText} keyboardType="decimal-pad" onChangeText={(t) => {
+          setWeightText(t);
+          const v = parseFloat(t);
+          if (v > 30 && v < 200) set({ weightKg: v });
+        }} style={input} />
+        {weightText.trim() !== '' && !(parseFloat(weightText) > 30 && parseFloat(weightText) < 200) ? (
+          <Text style={[T.small, { color: C.warn, marginTop: 6 }]}>Use a weight from 30 to 200 kg.</Text>
+        ) : null}
 
         <Text style={[T.label, { marginTop: 24, color: C.gold }]}>Bike</Text>
         <TextInput value={s.bikeName} onChangeText={(t) => set({ bikeName: t })} placeholder="Bike name (goes into your cycling log)" placeholderTextColor={C.dim} style={input} />
@@ -74,17 +83,23 @@ export default function SettingsScreen({ onBack, onRerunWizard }: { onBack: () =
         <Row label="Upload finished sessions" value={s.syncEnabled} onChange={(v) => set({ syncEnabled: v })} />
         <Text style={[T.small, { marginTop: 10 }]}>Private data repo (owner/name)</Text>
         <TextInput value={s.githubRepo} onChangeText={(t) => set({ githubRepo: t })} autoCapitalize="none" autoCorrect={false} style={input} />
-        <Text style={[T.small, { marginTop: 10 }]}>
-          Token {hasToken ? '(saved in the iPhone Keychain)' : '(not set)'}: a fine-grained GitHub token with access to only that repo, Contents: Read and write.
+        <Text style={[T.small, { marginTop: 10, lineHeight: 18 }]}>
+          Token {hasToken ? 'saved on this phone' : 'not set'}. Use a fine-grained GitHub token for that repo only, with Contents set to Read and write.
         </Text>
         <TextInput value={token} onChangeText={setTok} placeholder={hasToken ? 'Paste a new token to replace it' : 'Paste token'} placeholderTextColor={C.dim}
           autoCapitalize="none" autoCorrect={false} secureTextEntry style={input} />
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
-          <Btn title="SAVE TOKEN" kind="gold" style={{ flex: 1 }} disabled={!token}
+          <Btn title="SAVE TOKEN" kind="gold" style={{ flex: 1 }} disabled={!token || busy != null}
             onPress={async () => { await setToken(token); setTok(''); setHasToken(true); setMsg('Token saved.'); }} />
-          <Btn title="TEST" kind="ghost" style={{ flex: 1 }} onPress={async () => setMsg(await testConnection())} />
+          <Btn title="TEST" kind="ghost" style={{ flex: 1 }} disabled={busy != null} onPress={async () => {
+            setBusy('test'); setMsg('Checking…');
+            try { setMsg(await testConnection()); } finally { setBusy(null); }
+          }} />
         </View>
-        <Btn title="UPLOAD NOW" kind="ghost" style={{ marginTop: 10 }} onPress={async () => setMsg((await syncAll()).message)} />
+        <Btn title="UPLOAD NOW" kind="ghost" style={{ marginTop: 10 }} disabled={busy != null} onPress={async () => {
+          setBusy('upload'); setMsg('Uploading…');
+          try { setMsg((await syncAll()).message); } finally { setBusy(null); }
+        }} />
         {msg ? <Text style={[T.body, { marginTop: 10, color: C.goldSoft }]}>{msg}</Text> : null}
 
         <View style={{ marginTop: 30, gap: 10 }}>

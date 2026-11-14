@@ -8,6 +8,7 @@ import { Avatar, BackBar, Btn, C, T } from '../ui/kit.tsx';
 import { getSettings, saveSettings } from '../lib/settings.ts';
 import { allRows } from '../lib/history.ts';
 import { computeRecords } from '../lib/records.ts';
+import { formatIsoDate } from '../lib/events.ts';
 
 export default function Profile({ onBack, onEvents }: { onBack: () => void; onEvents: () => void }) {
   const s0 = getSettings();
@@ -28,9 +29,10 @@ export default function Profile({ onBack, onEvents }: { onBack: () => void; onEv
     await saveSettings({ photoUri: dest.uri });
   };
 
+  const weightN = parseFloat(weight);
+  const weightOk = weightN > 30 && weightN < 200;
   const save = async () => {
-    const w = parseFloat(weight);
-    await saveSettings({ name: name.trim(), bikeName: bike.trim(), weightKg: w > 30 && w < 200 ? w : s0.weightKg });
+    await saveSettings({ name: name.trim(), bikeName: bike.trim(), weightKg: weightOk ? weightN : s0.weightKg });
   };
 
   return (
@@ -50,6 +52,7 @@ export default function Profile({ onBack, onEvents }: { onBack: () => void; onEv
           <View style={{ flex: 1 }}>
             <Text style={T.label}>Weight (kg)</Text>
             <TextInput value={weight} onChangeText={setWeight} keyboardType="decimal-pad" style={[input, { marginTop: 6 }]} />
+            {!weightOk && weight.trim() !== '' ? <Text style={[T.small, { color: C.warn, marginTop: 6 }]}>Use a weight from 30 to 200 kg. Otherwise the saved weight stays.</Text> : null}
           </View>
           <View style={{ flex: 2 }}>
             <Text style={T.label}>Bike</Text>
@@ -61,10 +64,12 @@ export default function Profile({ onBack, onEvents }: { onBack: () => void; onEv
           <View style={{ marginTop: 8 }}>
             <Text style={[T.label, { marginBottom: 6 }]}>Personal records</Text>
             {records.map((r) => (
-              <View key={r.key} style={{ flexDirection: 'row', alignItems: 'baseline', paddingVertical: 9, borderBottomWidth: 1, borderColor: C.line }}>
-                <Text style={[T.small, { flex: 1, color: C.text, fontSize: 14 }]}>{r.label}</Text>
-                <Text style={[T.big, { fontSize: 18 }]}>{r.value}</Text>
-                <Text style={[T.small, { width: 86, textAlign: 'right' }]}>{r.date}</Text>
+              <View key={r.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9, borderBottomWidth: 1, borderColor: C.line }}>
+                <Text style={[T.body, { flex: 1, fontSize: 15 }]}>{r.label}</Text>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={[T.big, { fontSize: 18 }]}>{r.value}</Text>
+                  <Text style={T.small}>{formatIsoDate(r.date)}</Text>
+                </View>
               </View>
             ))}
           </View>

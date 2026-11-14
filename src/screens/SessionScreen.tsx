@@ -34,7 +34,17 @@ export default function SessionScreen({ id, onClose, fresh }: { id: string; onCl
   }, [path]);
   const series = useMemo(() => profile(points, meta.sport?.startsWith('swim') ? 50 : 100), [points]);
 
-  if (!row) return null;
+  if (!row) {
+    return (
+      <SafeAreaView style={T.screen}>
+        <BackBar onBack={onClose} />
+        <View style={{ padding: 20, gap: 8 }}>
+          <Text style={T.h2}>Session not found</Text>
+          <Text style={T.small}>It is no longer on this phone.</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
   const swim = meta.sport.startsWith('swim');
   const bike = meta.sport === 'bike';
   const pool = meta.sport === 'swim_pool';
@@ -53,29 +63,29 @@ export default function SessionScreen({ id, onClose, fresh }: { id: string; onCl
   const bestFull = fullSpeeds.length ? Math.max(...fullSpeeds) : 0;
 
   const elev = series.filter((p) => p.alt != null);
-  const speedFmt = (v: number) => (bike ? `${kmh(v).toFixed(1)} km/h` : `${fmtPace(v, per)} /${swim ? '100m' : 'km'}`);
+  const speedFmt = (v: number) => (bike ? `${kmh(v).toFixed(1)} km/h` : `${fmtPace(v, per)} ${swim ? 'min/100m' : 'min/km'}`);
 
   // key details: never repeat distance / time from the hero
-  const details: { label: string; value: string }[] = bike
+  const details: { label: string; value: string; unit?: string }[] = bike
     ? [
-        { label: 'Avg speed', value: `${kmh(avg).toFixed(1)} km/h` },
-        { label: 'Top speed', value: `${kmh(stats.maxSpeedMs ?? 0).toFixed(1)} km/h` },
-        { label: 'Climb', value: `${Math.round(stats.elevGainM ?? 0)} m` },
-        { label: 'Fastest km', value: bestFull ? `${kmh(bestFull).toFixed(1)} km/h` : '-' },
-        { label: 'Calories', value: meta.kcal ? `${meta.kcal} kcal` : '-' },
+        { label: 'Avg speed', value: kmh(avg).toFixed(1), unit: 'km/h' },
+        { label: 'Top speed', value: kmh(stats.maxSpeedMs ?? 0).toFixed(1), unit: 'km/h' },
+        { label: 'Climb', value: `${Math.round(stats.elevGainM ?? 0)}`, unit: 'm' },
+        { label: 'Fastest km', value: bestFull ? kmh(bestFull).toFixed(1) : '–', unit: bestFull ? 'km/h' : undefined },
+        { label: 'Calories', value: meta.kcal ? `${meta.kcal}` : '–', unit: meta.kcal ? 'kcal' : undefined },
       ]
     : swim
       ? [
-          { label: 'Avg pace', value: `${fmtPace(avg, 100)} /100m` },
-          { label: 'Best 100 m', value: bestFull ? `${fmtPace(bestFull, 100)}` : '-' },
-          { label: 'Calories', value: meta.kcal ? `${meta.kcal} kcal` : '-' },
+          { label: 'Avg pace', value: fmtPace(avg, 100), unit: 'min/100m' },
+          { label: 'Best 100 m', value: bestFull ? fmtPace(bestFull, 100) : '–', unit: bestFull ? 'min/100m' : undefined },
+          { label: 'Calories', value: meta.kcal ? `${meta.kcal}` : '–', unit: meta.kcal ? 'kcal' : undefined },
         ]
       : [
-          { label: 'Avg pace', value: `${fmtPace(avg)} /km` },
-          { label: 'Best km', value: bestFull ? `${fmtPace(bestFull)} /km` : '-' },
-          { label: 'Cadence', value: meta.cadenceSpm ? `${meta.cadenceSpm} spm` : '-' },
-          { label: 'Climb', value: `${Math.round(stats.elevGainM ?? 0)} m` },
-          { label: 'Calories', value: meta.kcal ? `${meta.kcal} kcal` : '-' },
+          { label: 'Avg pace', value: fmtPace(avg), unit: 'min/km' },
+          { label: 'Best km', value: bestFull ? fmtPace(bestFull) : '–', unit: bestFull ? 'min/km' : undefined },
+          { label: 'Cadence', value: meta.cadenceSpm ? `${meta.cadenceSpm}` : '–', unit: meta.cadenceSpm ? 'steps/min' : undefined },
+          { label: 'Climb', value: `${Math.round(stats.elevGainM ?? 0)}`, unit: 'm' },
+          { label: 'Calories', value: meta.kcal ? `${meta.kcal}` : '–', unit: meta.kcal ? 'kcal' : undefined },
         ];
 
   const pages: { key: string; title: string; body: React.ReactNode }[] = [];
@@ -92,26 +102,41 @@ export default function SessionScreen({ id, onClose, fresh }: { id: string; onCl
     });
   }
   if (!swim && elev.length > 1) {
-    const alts = elev.map((p) => p.alt as number);
     pages.push({
       key: 'elev', title: 'Elevation',
       body: (
         <View style={{ gap: 10 }}>
-          <Text style={T.small}>+{Math.round(stats.elevGainM ?? 0)} m up · -{Math.round(stats.elevLossM ?? 0)} m down</Text>
-          <Chart xs={elev.map((p) => p.km)} ys={alts} width={pageW} height={210}
-            yTop={`${Math.round(Math.max(...alts))} m`} yBottom={`${Math.round(Math.min(...alts))} m`} xLabel={`${(elev[elev.length - 1].km).toFixed(1)} km`} />
+          <Text style={T.small}>+{Math.round(stats.elevGainM ?? 0)} m up · −{Math.round(stats.elevLossM ?? 0)} m down</Text>
+          <Chart width={pageW} height={170} unit="m" fill points={elev.map((p) => ({
+            y: p.alt as number,
+            xLabel: `${p.km.toFixed(1)} km`,
+            calloutTitle: `${p.km.toFixed(1)} km`,
+            calloutBody: `${Math.round(p.alt as number)} m`,
+          }))} />
         </View>
       ),
     });
   }
   if (!pool && series.length > 1) {
-    const sp = series.map((p) => p.speed);
     pages.push({
       key: 'pace', title: bike ? 'Speed' : 'Pace',
       body: (
         <ScrollView nestedScrollEnabled style={{ height: PAGE_H - 30 }}>
-          <Chart xs={series.map((p) => p.km)} ys={sp} width={pageW} height={130}
-            yTop={speedFmt(Math.max(...sp))} yBottom={speedFmt(Math.min(...sp))} xLabel={`${series[series.length - 1].km.toFixed(1)} km`} />
+          <Chart
+            width={pageW}
+            height={130}
+            unit={bike ? 'km/h' : swim ? 'min/100m' : 'min/km'}
+            color={bike ? '#f0f0f0' : C.coral}
+            fill
+            reverse={!bike}
+            yFormat={bike ? (v) => v.toFixed(0) : (v) => mmss(v)}
+            points={series.map((p) => ({
+              y: p.speed > 0.05 ? (bike ? kmh(p.speed) : per / p.speed) : null,
+              xLabel: swim ? `${Math.round(p.km * 1000)} m` : `${p.km.toFixed(1)} km`,
+              calloutTitle: swim ? `${Math.round(p.km * 1000)} m` : `${p.km.toFixed(1)} km`,
+              calloutBody: p.speed > 0.05 ? speedFmt(p.speed) : 'No pace for this stretch',
+            }))}
+          />
           <View style={{ marginTop: 10 }}>
             {splits.map((s, i) => {
               const v = speeds[i];
@@ -127,6 +152,7 @@ export default function SessionScreen({ id, onClose, fresh }: { id: string; onCl
                 </View>
               );
             })}
+            {splits.some((s) => s.distanceM < per - 1) ? <Text style={[T.small, { marginTop: 8 }]}>* Shorter than a full split, so the pace is only for that piece.</Text> : null}
           </View>
         </ScrollView>
       ),
@@ -136,7 +162,7 @@ export default function SessionScreen({ id, onClose, fresh }: { id: string; onCl
     key: 'details', title: 'Details',
     body: (
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', rowGap: 6 }}>
-        {details.map((d) => <Stat key={d.label} label={d.label} value={d.value} style={{ flexBasis: '50%', flexGrow: 0 }} />)}
+        {details.map((d) => <Stat key={d.label} label={d.label} value={d.value} unit={d.unit} style={{ flexBasis: '50%', flexGrow: 0 }} />)}
       </View>
     ),
   });
@@ -169,7 +195,7 @@ export default function SessionScreen({ id, onClose, fresh }: { id: string; onCl
           </Text>
           <View style={{ flexDirection: 'row', marginTop: 6 }}>
             <Stat label="Time" value={fmtDuration(durS)} />
-            {bike ? <Stat label="Avg speed" value={kmh(avg).toFixed(1)} unit="km/h" /> : <Stat label="Avg pace" value={fmtPace(avg, per)} unit={swim ? '/100m' : '/km'} />}
+            {bike ? <Stat label="Avg speed" value={kmh(avg).toFixed(1)} unit="km/h" /> : <Stat label="Avg pace" value={fmtPace(avg, per)} unit={swim ? 'min/100m' : 'min/km'} />}
           </View>
         </Hero>
 
@@ -200,10 +226,10 @@ export default function SessionScreen({ id, onClose, fresh }: { id: string; onCl
         </View>
 
         <Btn title={fresh ? 'Save' : 'Done'} onPress={() => { updateMeta(id, meta, stats); onClose(); }} />
+        <Text style={[T.small, { lineHeight: 18 }]}>{row.synced ? 'On GitHub' : row.sync_error ? 'Upload failed. It will retry.' : 'Uploads when online'}</Text>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-          {!pool ? <Pressable onPress={shareGpx}><Text style={T.small}>Share GPX</Text></Pressable> : <View />}
-          <Text style={T.small}>{row.synced ? 'On GitHub' : row.sync_error ? 'Upload failed, will retry' : 'Uploads when online'}</Text>
-          <Pressable onPress={remove}><Text style={[T.small, { color: C.coral }]}>Delete</Text></Pressable>
+          {!pool ? <Pressable onPress={shareGpx} hitSlop={8}><Text style={{ color: C.text, fontWeight: '600' }}>Share GPX</Text></Pressable> : <View />}
+          <Pressable onPress={remove} hitSlop={8}><Text style={{ color: C.coral, fontWeight: '600' }}>Delete</Text></Pressable>
         </View>
       </ScrollView>
     </SafeAreaView>

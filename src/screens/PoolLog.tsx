@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BackBar, Btn, C, Chip, T } from '../ui/kit.tsx';
 import { getSettings, saveSettings } from '../lib/settings.ts';
 import { createSession, finishSession } from '../lib/db.ts';
-import { computeStats, estimateKcal } from '../lib/geo.ts';
+import { computeStats, estimateKcal, fmtDuration, fmtPace } from '../lib/geo.ts';
 
 export default function PoolLog({ onSaved, onBack }: { onSaved: (id: string) => void; onBack: () => void }) {
   const [len, setLen] = useState(getSettings().poolLengthM);
@@ -46,14 +46,24 @@ export default function PoolLog({ onSaved, onBack }: { onSaved: (id: string) => 
         <TextInput value={laps} onChangeText={setLaps} keyboardType="number-pad" style={input} placeholder="40" placeholderTextColor={C.dim} />
         <Text style={T.label}>Time</Text>
         <View style={{ flexDirection: 'row', gap: 10 }}>
-          <TextInput value={mins} onChangeText={setMins} keyboardType="number-pad" style={[input, { flex: 1 }]} placeholder="min" placeholderTextColor={C.dim} />
-          <TextInput value={secs} onChangeText={setSecs} keyboardType="number-pad" style={[input, { flex: 1 }]} placeholder="sec" placeholderTextColor={C.dim} />
+          <View style={{ flex: 1, gap: 6 }}>
+            <Text style={T.small}>Minutes</Text>
+            <TextInput value={mins} onChangeText={setMins} keyboardType="number-pad" style={input} placeholder="0" placeholderTextColor={C.dim} />
+          </View>
+          <View style={{ flex: 1, gap: 6 }}>
+            <Text style={T.small}>Seconds</Text>
+            <TextInput value={secs} onChangeText={setSecs} keyboardType="number-pad" style={input} placeholder="0" placeholderTextColor={C.dim} />
+          </View>
         </View>
         <Text style={T.label}>Pool / location</Text>
         <TextInput value={route} onChangeText={setRoute} style={input} placeholder="e.g. Ellis Park pool" placeholderTextColor={C.dim} />
         <Text style={T.label}>Notes</Text>
-        <TextInput value={notes} onChangeText={setNotes} style={[input, { minHeight: 70 }]} multiline placeholderTextColor={C.dim} />
-        <Text style={[T.h2, { textAlign: 'center', marginVertical: 8 }]}>{lapsN * len} m</Text>
+        <TextInput value={notes} onChangeText={setNotes} style={[input, { minHeight: 70 }]} multiline placeholder="Optional" placeholderTextColor={C.dim} />
+        <View style={{ alignItems: 'center', gap: 2, marginVertical: 6 }}>
+          <Text style={T.label}>Distance</Text>
+          <Text style={[T.big, { fontSize: 42 }]}>{lapsN * len}<Text style={{ fontSize: 16, color: C.dim, textShadowRadius: 0 }}> m</Text></Text>
+          <Text style={T.small}>{ok ? `${fmtDuration(durS)} · ${fmtPace((lapsN * len) / durS, 100)} min/100m` : 'Enter laps and a time'}</Text>
+        </View>
         <Btn title="SAVE SWIM" onPress={save} disabled={!ok} />
         <Btn title="CANCEL" kind="ghost" onPress={onBack} />
       </ScrollView>

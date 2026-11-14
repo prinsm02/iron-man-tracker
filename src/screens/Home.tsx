@@ -5,12 +5,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar, C, Chip, Hero, T } from '../ui/kit.tsx';
 import SidePanel, { type PanelTarget } from '../ui/SidePanel.tsx';
 import { getSettings } from '../lib/settings.ts';
-import { upcoming } from '../lib/events.ts';
+import { countdownLabel, upcoming } from '../lib/events.ts';
+import { acwrTone, computeAcwr } from '../lib/acwr.ts';
 import { ordered, type Sport } from '../lib/geo.ts';
 import { allRows } from '../lib/history.ts';
 import { totals } from '../lib/records.ts';
 import { getLive } from '../tracking/tracker.ts';
 
+const TONE = { ok: C.ok, warn: C.warn, bad: C.bad, dim: C.dim } as const;
 const TAB: Record<Sport, string> = { run: 'Run', bike: 'Bike', swim_open: 'Swim', swim_pool: 'Pool' };
 const NOUN: Record<Sport, string> = { run: 'run', bike: 'ride', swim_open: 'swim', swim_pool: 'pool swim' };
 
@@ -25,7 +27,9 @@ export default function Home({
   const [sport, setSport] = useState<Sport>(sports.includes(s.defaultSport) ? s.defaultSport : sports[0]);
   const [panel, setPanel] = useState(false);
   const next = upcoming(s.events)[0];
-  const { week, month } = totals(allRows());
+  const history = allRows();
+  const { week, month } = totals(history);
+  const load = computeAcwr(history);
   const recording = getLive().status !== 'idle';
 
   const go = (t: PanelTarget) =>
@@ -53,7 +57,7 @@ export default function Home({
       <SidePanel open={panel} onClose={() => setPanel(false)} onGo={go} />
       <View style={{ flex: 1, padding: 20, gap: 16 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-          <Pressable onPress={() => setPanel(true)} hitSlop={14}><Text style={{ color: C.text, fontSize: 22 }}>☰</Text></Pressable>
+          <Pressable onPress={() => setPanel(true)} hitSlop={14} accessibilityLabel="Open menu"><Text style={{ color: C.text, fontSize: 22 }}>☰</Text></Pressable>
           <Text style={[T.h2, { fontSize: 17 }]}>Iron Man</Text>
         </View>
 
@@ -76,20 +80,27 @@ export default function Home({
               <Big label="Swim" km={week.swim} />
             </View>
             <View style={{ height: 1, backgroundColor: C.line, marginVertical: 12 }} />
-            <Text style={T.small}>
-              {new Date().toLocaleDateString('en-ZA', { month: 'long' })}: Run {month.run.toFixed(1)} · Bike {month.bike.toFixed(1)} · Swim {month.swim.toFixed(1)} · <Text style={{ color: C.text }}>{month.all.toFixed(1)} km</Text>
+            <Text style={[T.small, { lineHeight: 18 }]}>
+              {new Date().toLocaleDateString('en-ZA', { month: 'long' })}: Run {month.run.toFixed(1)} km · Bike {month.bike.toFixed(1)} km · Swim {month.swim.toFixed(1)} km · {month.all.toFixed(1)} km
             </Text>
+            {load.acwr != null ? (
+              <Text style={{ marginTop: 8, lineHeight: 20 }}>
+                <Text style={T.label}>Load </Text>
+                <Text style={{ color: TONE[acwrTone(load.zone)], fontWeight: '700', fontSize: 15 }}>{load.acwr.toFixed(2)}</Text>
+                <Text style={{ color: TONE[acwrTone(load.zone)], fontSize: 14 }}>  {load.label}</Text>
+              </Text>
+            ) : null}
           </Hero>
         </Pressable>
 
         {next ? (
-          <Pressable onPress={onEvents} style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 7, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: C.line, backgroundColor: C.card2 }}>
-            <Text style={{ color: C.text, fontSize: 13 }}>{next.name}</Text>
-            <Text style={{ color: C.coral, fontSize: 13, fontWeight: '700' }}>{next.days === 0 ? 'today' : `${next.days}d`}</Text>
+          <Pressable onPress={onEvents} style={{ alignSelf: 'flex-start', maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 7, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: C.line, backgroundColor: C.card2 }}>
+            <Text numberOfLines={1} style={{ color: C.text, fontSize: 13, flexShrink: 1 }}>{next.name}</Text>
+            <Text style={{ color: C.coral, fontSize: 13, fontWeight: '700' }}>{countdownLabel(next.days)}</Text>
           </Pressable>
         ) : null}
 
-        <View style={{ flexDirection: 'row' }}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
           {sports.map((sp) => <Chip key={sp} label={TAB[sp]} selected={sport === sp} onPress={() => setSport(sp)} />)}
         </View>
 
@@ -110,9 +121,9 @@ export default function Home({
         </View>
 
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Pressable onPress={onProfile} hitSlop={10} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Pressable onPress={onProfile} hitSlop={10} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 }}>
             <Avatar uri={s.photoUri} name={s.name} />
-            <Text style={{ color: C.text, fontSize: 15, fontWeight: '600' }}>{s.name ? 'Profile' : 'Set up profile'}</Text>
+            <Text numberOfLines={1} style={{ color: C.text, fontSize: 15, fontWeight: '600', flexShrink: 1 }}>{s.name || 'Set up profile'}</Text>
           </Pressable>
           <View style={{ flexDirection: 'row', gap: 18 }}>
             <Pressable onPress={onStats} hitSlop={12}><Text style={{ color: C.text, fontSize: 15, fontWeight: '600' }}>Stats</Text></Pressable>

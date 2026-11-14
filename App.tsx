@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { C } from './src/ui/kit.tsx';
@@ -66,7 +66,12 @@ export default function App() {
   let screen: React.ReactNode;
   switch (route.name) {
     case 'loading':
-      screen = <View style={{ flex: 1, backgroundColor: C.bg, justifyContent: 'center' }}><ActivityIndicator color={C.red} /></View>;
+      screen = (
+        <View style={{ flex: 1, backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center', gap: 12 }}>
+          <ActivityIndicator color={C.red} />
+          <Text style={{ color: '#888', fontSize: 13 }}>Loading</Text>
+        </View>
+      );
       break;
     case 'wizard':
       screen = <Wizard onDone={goHome} />;

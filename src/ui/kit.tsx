@@ -18,6 +18,7 @@ export const C = {
   red3: '#e84040',
   ok: '#44dd88',
   warn: '#ff9900',
+  bad: '#ff4444',
   // kept for older imports
   gold: '#ff6b6b',
   goldSoft: '#ff6b6b',

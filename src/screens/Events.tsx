@@ -5,7 +5,7 @@ import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-nativ
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BackBar, Btn, C, Chip, T } from '../ui/kit.tsx';
 import { getSettings, saveSettings, type AppEvent } from '../lib/settings.ts';
-import { daysTo, validDate } from '../lib/events.ts';
+import { countdownLabel, daysTo, formatIsoDate, validDate } from '../lib/events.ts';
 import { getDiscover } from '../lib/history.ts';
 
 const KINDS = ['Run', 'Bike', 'Swim', 'Triathlon', 'Other'];
@@ -62,17 +62,17 @@ export default function Events({ onBack }: { onBack: () => void }) {
         ) : null}
 
         <Text style={T.label}>My events</Text>
-        {!mine.length ? <Text style={T.small}>None yet. Add one, or pick from the list below.</Text> : null}
+        {mine.length ? <Text style={T.small}>Tap one to edit it. Hold it to delete it.</Text> : <Text style={T.small}>None yet. Add one, or pick from the list below.</Text>}
         {mine.map((e, i) => {
           const d = daysTo(e.date);
           return (
             <Pressable key={e.id} onPress={() => setDraft(e)} onLongPress={() => remove(e)} delayLongPress={600}
               style={[T.card, { backgroundColor: i % 2 ? C.card2 : C.card, flexDirection: 'row', alignItems: 'center' }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={T.label}>{e.kind} · {new Date(e.date).toLocaleDateString('en-ZA', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</Text>
+              <View style={{ flex: 1, paddingRight: 10 }}>
+                <Text style={T.label}>{e.kind} · {formatIsoDate(e.date, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</Text>
                 <Text style={[T.body, { fontWeight: '700', marginTop: 2 }]}>{e.name}</Text>
               </View>
-              <Text style={[T.big, { fontSize: 24 }]}>{d <= 0 ? 'today' : `${d}d`}</Text>
+              <Text style={[T.big, { fontSize: 22, flexShrink: 0 }]}>{countdownLabel(d)}</Text>
             </Pressable>
           );
         })}
@@ -83,7 +83,7 @@ export default function Events({ onBack }: { onBack: () => void }) {
         {others.map((o, i) => (
           <View key={o.id} style={[T.card, { backgroundColor: i % 2 ? C.card2 : C.card, flexDirection: 'row', alignItems: 'center', gap: 10 }]}>
             <View style={{ flex: 1 }}>
-              <Text style={T.label}>{o.kind} · {new Date(o.date).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })}{o.place ? ` · ${o.place}` : ''}</Text>
+              <Text style={T.label}>{o.kind} · {formatIsoDate(o.date)}{o.place ? ` · ${o.place}` : ''}</Text>
               <Text style={[T.body, { fontWeight: '600', marginTop: 2 }]}>{o.name}</Text>
               {o.note ? <Text style={[T.small, { marginTop: 2 }]}>{o.note}</Text> : null}
             </View>
@@ -93,7 +93,6 @@ export default function Events({ onBack }: { onBack: () => void }) {
             </Pressable>
           </View>
         ))}
-        <Text style={[T.small, { marginTop: 6 }]}>Tap one of yours to edit, hold it to delete.</Text>
       </ScrollView>
     </SafeAreaView>
   );

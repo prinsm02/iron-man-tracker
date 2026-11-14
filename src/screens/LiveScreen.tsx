@@ -41,25 +41,31 @@ export default function LiveScreen({ onFinished, onBack }: { onFinished: (id: st
   const paused = live.status === 'paused' || live.autoPaused;
   const gpsOk = live.gpsAccuracy != null && live.gpsAccuracy <= 15;
 
-  const splitLine = (sec: number) => (bike ? `${kmh(per / sec).toFixed(1)} km/h` : `${fmtPace(per / sec, per)} /${swim ? '100m' : 'km'}`);
+  const splitLine = (sec: number) => (bike ? `${kmh(per / sec).toFixed(1)} km/h` : `${fmtPace(per / sec, per)} ${swim ? 'min/100m' : 'min/km'}`);
   const recent = live.splits.map((sec, i) => ({ n: i + 1, sec })).slice(-4).reverse();
   const best = live.splits.length ? Math.min(...live.splits) : 0;
 
   return (
     <SafeAreaView style={T.screen}>
       {s.keepScreenOn ? <KeepAwake /> : null}
-      <BackBar onBack={onBack} title="keeps recording" />
+      <BackBar onBack={onBack} title="still recording" />
       <View style={{ flex: 1, padding: 20, gap: 14 }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-          <Text style={[T.label, { color: !live.gpsReady || paused ? C.warn : C.coral }]}>● {!live.gpsReady ? 'Finding GPS, stand still' : live.status === 'paused' ? 'Paused' : live.autoPaused ? 'Auto-paused' : SPORT_LABEL[live.sport]}</Text>
-          <Text style={[T.label, { color: gpsOk ? C.ok : C.warn }]}>{live.gpsAccuracy == null ? 'Finding GPS' : gpsOk ? 'GPS' : 'Weak GPS'}</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}>
+          <Text style={[T.label, { flex: 1, color: !live.gpsReady || paused ? C.warn : C.coral }]} numberOfLines={1}>● {live.status === 'paused' ? 'Paused' : live.autoPaused ? 'Auto-paused' : !live.gpsReady ? 'Finding GPS' : SPORT_LABEL[live.sport]}</Text>
+          <Text style={[T.label, { color: !live.gpsReady ? C.warn : gpsOk ? C.ok : C.warn }]}>{!live.gpsReady ? 'Stand still' : gpsOk ? 'GPS good' : 'Weak GPS'}</Text>
         </View>
 
         {s.showMap ? (
-          <MapView ref={map} style={{ height: 150, borderRadius: 12 }} showsUserLocation followsUserLocation={!live.path.length} userInterfaceStyle="dark" mapType="mutedStandard"
-            initialCamera={{ center: live.path[0] ?? { latitude: 0, longitude: 0 }, zoom: 16, heading: 0, pitch: 0 }}>
-            {live.path.length > 1 ? <Polyline coordinates={live.path} strokeColor={C.coral} strokeWidth={4} /> : null}
-          </MapView>
+          live.path.length > 0 ? (
+            <MapView ref={map} style={{ height: 150, borderRadius: 12 }} showsUserLocation followsUserLocation={!live.path.length} userInterfaceStyle="dark" mapType="mutedStandard"
+              initialCamera={{ center: live.path[0], zoom: 16, heading: 0, pitch: 0 }}>
+              {live.path.length > 1 ? <Polyline coordinates={live.path} strokeColor={C.coral} strokeWidth={4} /> : null}
+            </MapView>
+          ) : (
+            <View style={{ height: 150, borderRadius: 12, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+              <Text style={[T.small, { textAlign: 'center' }]}>Map starts when GPS locks on.</Text>
+            </View>
+          )
         ) : null}
 
         <Hero>
@@ -69,7 +75,7 @@ export default function LiveScreen({ onFinished, onBack }: { onFinished: (id: st
             <Stat label="Distance" value={swim ? `${Math.round(live.distanceM)}` : (live.distanceM / 1000).toFixed(2)} unit={swim ? 'm' : 'km'} />
             {bike
               ? <Stat label="Speed" value={kmh(speedNow).toFixed(1)} unit="km/h" />
-              : <Stat label="Pace" value={fmtPace(speedNow, per)} unit={swim ? '/100m' : '/km'} />}
+              : <Stat label="Pace" value={fmtPace(speedNow, per)} unit={swim ? 'min/100m' : 'min/km'} />}
           </View>
         </Hero>
 
@@ -80,7 +86,7 @@ export default function LiveScreen({ onFinished, onBack }: { onFinished: (id: st
               <View key={r.n} style={{ flexDirection: 'row', paddingVertical: 7, borderBottomWidth: 1, borderColor: C.line }}>
                 <Text style={[T.small, { width: 56 }]}>{swim ? `${r.n * 100} m` : `Km ${r.n}`}</Text>
                 <Text style={[T.num, { flex: 1, fontSize: 15, fontWeight: '600' }]}>{mmss(r.sec)}</Text>
-                <Text style={[T.num, { fontSize: 15, color: r.sec === best ? C.coral : C.text }]}>{splitLine(r.sec)}</Text>
+                <Text style={[T.num, { fontSize: 15, color: r.sec === best ? C.coral : C.text }]} numberOfLines={1}>{splitLine(r.sec)}</Text>
               </View>
             ))}
           </View>

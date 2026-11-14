@@ -28,14 +28,14 @@ export default function SidePanel({ open, onClose, onGo }: { open: boolean; onCl
           <Pressable style={{ flex: 1 }} onPress={() => {}}>
             <SafeAreaView style={{ flex: 1 }}>
               <View style={{ padding: 20, borderBottomWidth: 1, borderColor: C.line }}>
-                <Text style={[T.h2, { fontSize: 17 }]}>{s.name || 'Iron Man'}</Text>
-                <Text style={T.small}>{s.weightKg} kg{s.bikeName ? ` · ${s.bikeName}` : ''}</Text>
+                <Text numberOfLines={1} style={[T.h2, { fontSize: 17 }]}>{s.name || 'Iron Man'}</Text>
+                <Text numberOfLines={1} style={T.small}>{s.weightKg} kg{s.bikeName ? ` · ${s.bikeName}` : ''}</Text>
               </View>
               {items.map((it) => (
                 <Pressable key={it.key} onPress={() => { onClose(); onGo(it.key); }}
                   style={({ pressed }) => ({ paddingVertical: 14, paddingHorizontal: 20, backgroundColor: pressed ? '#151515' : 'transparent', borderLeftWidth: 2, borderColor: pressed ? C.red : 'transparent' })}>
                   <Text style={[T.body, { fontWeight: '600' }]}>{it.label}</Text>
-                  <Text style={T.small}>{it.sub}</Text>
+                  <Text numberOfLines={2} style={T.small}>{it.sub}</Text>
                 </Pressable>
               ))}
             </SafeAreaView>
