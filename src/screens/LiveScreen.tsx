@@ -52,7 +52,7 @@ export default function LiveScreen({ onFinished, onBack }: { onFinished: (id: st
       <View style={{ flex: 1, padding: 20, gap: 14 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}>
           <Text style={[T.label, { flex: 1, color: !live.gpsReady || paused ? C.warn : C.coral }]} numberOfLines={1}>● {live.status === 'paused' ? 'Paused' : live.autoPaused ? 'Auto-paused' : !live.gpsReady ? 'Finding GPS' : SPORT_LABEL[live.sport]}</Text>
-          <Text style={[T.label, { color: !live.gpsReady ? C.warn : gpsOk ? C.ok : C.warn }]}>{!live.gpsReady ? 'Stand still' : gpsOk ? 'GPS good' : 'Weak GPS'}</Text>
+          <Text style={[T.label, { color: !live.gpsReady ? C.warn : gpsOk ? C.ok : C.warn }]}>{!live.gpsReady ? (Date.now() - live.startedAt > 30000 ? 'Go outside' : 'Stand still') : gpsOk ? 'GPS good' : 'Weak GPS'}</Text>
         </View>
 
         {s.showMap ? (
@@ -92,6 +92,9 @@ export default function LiveScreen({ onFinished, onBack }: { onFinished: (id: st
           </View>
         ) : null}
 
+        {!live.gpsReady && Date.now() - live.startedAt > 30000 ? (
+          <Text style={[T.small, { color: C.warn }]}>No GPS lock yet. Step outside, away from buildings and trees, and hold the phone still for a few seconds.</Text>
+        ) : null}
         {live.mode === 'foreground' ? <Text style={[T.small, { color: C.warn }]}>Test mode: keep the screen on.</Text> : null}
         <View style={{ flex: 1 }} />
 

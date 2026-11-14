@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Alert, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Avatar, C, Chip, Hero, T } from '../ui/kit.tsx';
+import { Avatar, C, Hero, Segmented, T } from '../ui/kit.tsx';
 import SidePanel, { type PanelTarget } from '../ui/SidePanel.tsx';
 import { getSettings } from '../lib/settings.ts';
 import { countdownLabel, upcoming } from '../lib/events.ts';
@@ -11,6 +11,7 @@ import { ordered, type Sport } from '../lib/geo.ts';
 import { allRows } from '../lib/history.ts';
 import { totals } from '../lib/records.ts';
 import { getLive } from '../tracking/tracker.ts';
+import * as Haptics from 'expo-haptics';
 
 const TONE = { ok: C.ok, warn: C.warn, bad: C.bad, dim: C.dim } as const;
 const TAB: Record<Sport, string> = { run: 'Run', bike: 'Bike', swim_open: 'Swim', swim_pool: 'Pool' };
@@ -40,6 +41,7 @@ export default function Home({
 
   // Ask first, so a run is never recorded as a ride by accident.
   const confirmStart = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     if (sport === 'swim_open') {
       const canOpen = s.sports.includes('swim_open');
       const canPool = s.sports.includes('swim_pool');
@@ -82,9 +84,14 @@ export default function Home({
 
         <Pressable onPress={onStats}>
           <Hero>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text style={T.label}>This week</Text>
-              <Text style={[T.label, { color: C.text }]}>{week.all.toFixed(1)} km total</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={T.label}>This week · <Text style={{ color: C.text }}>{week.all.toFixed(1)} km</Text></Text>
+              {load.acwr != null ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 3, paddingHorizontal: 9, borderRadius: 999, borderWidth: 1, borderColor: TONE[acwrTone(load.zone)] }}>
+                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: TONE[acwrTone(load.zone)] }} />
+                  <Text style={{ color: TONE[acwrTone(load.zone)], fontSize: 11, fontWeight: '700' }}>Load {load.acwr.toFixed(2)}</Text>
+                </View>
+              ) : null}
             </View>
             <View style={{ flexDirection: 'row', marginTop: 10, gap: 8 }}>
               <Big label="Run" km={week.run} />
@@ -92,16 +99,11 @@ export default function Home({
               <Big label="Swim" km={week.swim} />
             </View>
             <View style={{ height: 1, backgroundColor: C.line, marginVertical: 12 }} />
-            <Text style={[T.small, { lineHeight: 18 }]}>
-              {new Date().toLocaleDateString('en-ZA', { month: 'long' })}: Run {month.run.toFixed(1)} km · Bike {month.bike.toFixed(1)} km · Swim {month.swim.toFixed(1)} km · {month.all.toFixed(1)} km
-            </Text>
-            {load.acwr != null ? (
-              <Text style={{ marginTop: 8, lineHeight: 20 }}>
-                <Text style={T.label}>Load </Text>
-                <Text style={{ color: TONE[acwrTone(load.zone)], fontWeight: '700', fontSize: 15 }}>{load.acwr.toFixed(2)}</Text>
-                <Text style={{ color: TONE[acwrTone(load.zone)], fontSize: 14 }}>  {load.label}</Text>
-              </Text>
-            ) : null}
+            <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+              <Text style={[T.label, { width: 92 }]}>{new Date().toLocaleDateString('en-ZA', { month: 'long' })}</Text>
+              <Text style={[T.small, { flex: 1 }]} numberOfLines={1}>Run {month.run.toFixed(0)} · Bike {month.bike.toFixed(0)} · Swim {month.swim.toFixed(0)}</Text>
+              <Text style={{ color: C.text, fontSize: 13, fontWeight: '700' }}>{month.all.toFixed(1)} km</Text>
+            </View>
           </Hero>
         </Pressable>
 
@@ -112,11 +114,8 @@ export default function Home({
           </Pressable>
         ) : null}
 
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-          {sports.map((sp) => <Chip key={sp} label={TAB[sp]} selected={sport === sp} onPress={() => setSport(sp)} />)}
-        </View>
-
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 22 }}>
+          {!recording ? <Segmented options={sports.map((sp) => ({ value: sp, label: TAB[sp] }))} value={sport} onChange={setSport} /> : null}
           <Pressable
             onPress={recording ? onBackToLive : confirmStart}
             style={({ pressed }) => ({

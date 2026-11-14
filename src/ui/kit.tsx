@@ -4,6 +4,7 @@
 import React, { useRef, useState } from 'react';
 import { Animated, Image, Pressable, StyleSheet, Text, View, type ViewStyle, type TextStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 
 export const C = {
   bg: '#0d0d0d',
@@ -176,6 +177,23 @@ export function Avatar({ size = 36, uri, name }: { size?: number; uri?: string; 
   return (
     <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
       {uri ? <Image source={{ uri }} style={{ width: size, height: size }} /> : <Text style={{ color: C.coral, fontWeight: '700', fontSize: size * 0.38 }}>{initials}</Text>}
+    </View>
+  );
+}
+
+/** Centred pill switch (Run | Bike | Swim). The selected one is filled red. Light haptic on change. */
+export function Segmented<V extends string>({ options, value, onChange }: { options: { value: V; label: string }[]; value: V; onChange: (v: V) => void }) {
+  return (
+    <View style={{ flexDirection: 'row', alignSelf: 'center', backgroundColor: C.card2, borderRadius: 999, borderWidth: 1, borderColor: C.line, padding: 4 }}>
+      {options.map((o) => {
+        const on = o.value === value;
+        return (
+          <Pressable key={o.value} onPress={() => { if (!on) { Haptics.selectionAsync().catch(() => {}); onChange(o.value); } }}
+            style={{ paddingVertical: 9, paddingHorizontal: 22, borderRadius: 999, backgroundColor: on ? C.red : 'transparent' }}>
+            <Text style={{ color: on ? '#fff' : C.dim, fontSize: 15, fontWeight: on ? '700' : '600' }}>{o.label}</Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }

@@ -4,6 +4,16 @@ import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import * as Speech from 'expo-speech';
 import { Pedometer } from 'expo-sensors';
+import * as Haptics from 'expo-haptics';
+
+// Felt in the hand or pocket: buzzes on start, pause, resume, finish, GPS lock and every km.
+const buzz = (kind: 'start' | 'tap' | 'split' | 'done') => {
+  try {
+    if (kind === 'done') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    else if (kind === 'split') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    else Haptics.impactAsync(kind === 'start' ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Medium);
+  } catch { /* haptics are optional */ }
+};
 import { TrackFilter, computeStats, fmtPace, fmtDuration, kmh, estimateKcal } from '../lib/geo.ts';
 import type { Fix, Sport, TrackPoint, Stats } from '../lib/geo.ts';
 import { createSession, insertPoint, getPoints, setStatus, openSession, finishSession } from '../lib/db.ts';
@@ -130,13 +140,14 @@ export function handleLocations(locs: Location.LocationObject[]) {
         splitT += dt;
         if (live.distanceM >= nextCallout) {
           callout();
+          buzz('split');
           nextCallout += calloutStep(live.sport);
         }
       }
     }
     live.gpsReady = filter.ready;
     live.autoPaused = live.gpsReady && !filter.moving;
-    if (!wasReady && live.gpsReady) speak('GPS locked');
+    if (!wasReady && live.gpsReady) { speak('GPS locked'); buzz('tap'); }
     else if (wasReady && wasAuto !== live.autoPaused) speak(live.autoPaused ? 'Auto paused' : 'Resumed');
   }
   live.lastSpeedMs = currentSpeed();
@@ -209,6 +220,7 @@ function resetCounters(sport: Sport) {
 }
 
 export async function start(sport: Sport) {
+  buzz('start');
   const id = `${Date.now()}`;
   const now = Date.now();
   createSession(id, sport, now);
@@ -222,6 +234,7 @@ export async function start(sport: Sport) {
 }
 
 export function pause() {
+  buzz('tap');
   if (live.status !== 'recording') return;
   tick();
   live.status = 'paused';
@@ -238,6 +251,7 @@ export function pause() {
 }
 
 export function resume() {
+  buzz('tap');
   if (live.status !== 'paused') return;
   tickAt = Date.now();
   live.status = 'recording';
@@ -256,6 +270,7 @@ export function activeSeconds(): number {
 
 /** Stop GPS, compute final stats, save. Returns the session id for the finish screen. */
 export async function finish(): Promise<{ id: string; stats: Stats } | null> {
+  buzz('done');
   if (!live.id) return null;
   tick();
   await stopGps();
