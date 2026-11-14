@@ -2,7 +2,7 @@
   "expo": {
     "name": "Iron Man",
     "slug": "iron-man-tracker",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -41,6 +41,15 @@
           "photosPermission": "Iron Man uses a photo you choose as your profile picture. It stays on your phone.",
           "cameraPermission": false,
           "microphonePermission": false
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/icon.png",
+          "imageWidth": 180,
+          "backgroundColor": "#0d0d0d",
+          "resizeMode": "contain"
         }
       ]
     ],

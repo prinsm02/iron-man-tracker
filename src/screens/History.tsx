@@ -15,7 +15,8 @@ export default function History({ onOpen, onBack }: { onOpen: (id: string) => vo
       { text: 'Delete', style: 'destructive', onPress: () => { deleteSession(item.id); setVersion((v) => v + 1); } },
     ]);
   const all = listFinished();
-  const rows = all.filter((r) => filter === 'all' || r.sport === filter);
+  // one Swim filter covers open water and pool
+  const rows = all.filter((r) => filter === 'all' || r.sport === filter || (filter === 'swim_open' && r.sport === 'swim_pool'));
   const filterName = filter === 'all' ? 'sessions' : `${SPORT_LABEL[filter].toLowerCase()} sessions`;
 
   const line = (r: SessionRow) => {
@@ -44,7 +45,7 @@ export default function History({ onOpen, onBack }: { onOpen: (id: string) => vo
         <Text style={T.h1}>History</Text>
         {all.length ? <Text style={T.small}>Hold a session to remove it from this phone.</Text> : null}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-          {(['all', 'run', 'bike', 'swim_open', 'swim_pool'] as const).map((f) => (
+          {(['all', 'run', 'bike', 'swim_open'] as const).map((f) => (
             <Chip key={f} label={f === 'all' ? 'All' : SPORT_LABEL[f]} selected={filter === f} onPress={() => setFilter(f)} />
           ))}
         </View>

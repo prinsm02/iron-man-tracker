@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.4
+
+- 3-second logo screen when the app opens.
+- One Swim tab: open water (GPS) or pool (log lengths) is chosen when you start.
+- Bottom left shows only your avatar; the bottom Stats link is gone (tap the week card for Stats).
+- History has one Swim filter covering open water and pool.
+
 ## 1.0.3
 
 - Stats charts label every bar and point, with units, period titles, sport legends, and week or month comparisons.

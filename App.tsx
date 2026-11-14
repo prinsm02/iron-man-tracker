@@ -17,6 +17,8 @@ import SettingsScreen from './src/screens/SettingsScreen.tsx';
 import Profile from './src/screens/Profile.tsx';
 import Events from './src/screens/Events.tsx';
 import Stats from './src/screens/Stats.tsx';
+import Splash from './src/screens/Splash.tsx';
+import * as SplashScreen from 'expo-splash-screen';
 import type { Sport } from './src/lib/geo.ts';
 
 type Route =
@@ -36,11 +38,16 @@ export default function App() {
 
   useEffect(() => {
     (async () => {
+      const shownAt = Date.now();
+      SplashScreen.hideAsync().catch(() => {}); // native splash off; our logo screen takes over
       const s = await loadSettings();
       await loadHistory();
+      // A session still open means the app was closed mid-run: GPS restarts straight away.
+      const resumed = s.setupDone ? await restore() : false;
+      // keep the logo on screen for about 3 seconds in total
+      await new Promise((r) => setTimeout(r, Math.max(0, 3000 - (Date.now() - shownAt))));
       if (!s.setupDone) return setRoute({ name: 'wizard' });
-      // A session still open means the app was closed mid-run: carry on recording.
-      if (await restore()) return setRoute({ name: 'live' });
+      if (resumed) return setRoute({ name: 'live' });
       setRoute({ name: 'home' });
       sync();
     })();
@@ -66,12 +73,7 @@ export default function App() {
   let screen: React.ReactNode;
   switch (route.name) {
     case 'loading':
-      screen = (
-        <View style={{ flex: 1, backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center', gap: 12 }}>
-          <ActivityIndicator color={C.red} />
-          <Text style={{ color: '#888', fontSize: 13 }}>Loading</Text>
-        </View>
-      );
+      screen = <Splash />;
       break;
     case 'wizard':
       screen = <Wizard onDone={goHome} />;

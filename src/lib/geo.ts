@@ -23,7 +23,7 @@ export const SPORT_LABEL: Record<Sport, string> = {
   run: 'Run',
   bike: 'Bike',
   swim_open: 'Swim',
-  swim_pool: 'Pool',
+  swim_pool: 'Swim (pool)',
 };
 
 // Max believable speed per sport (m/s). Anything faster between two fixes is a GPS jump.

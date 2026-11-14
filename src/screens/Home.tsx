@@ -23,8 +23,11 @@ export default function Home({
   onProfile: () => void; onEvents: () => void; onStats: () => void; onSync: () => void; onBackToLive: () => void; syncNote: string;
 }) {
   const s = getSettings();
-  const sports = ordered(s.sports);
-  const [sport, setSport] = useState<Sport>(sports.includes(s.defaultSport) ? s.defaultSport : sports[0]);
+  // Swim and Pool share one 'Swim' tab; open water or pool is chosen when you start.
+  const sports = ordered(s.sports).filter((x) => x !== 'swim_pool' || !s.sports.includes('swim_open'))
+    .map((x) => (x === 'swim_pool' ? 'swim_open' : x)) as Sport[];
+  const first = s.defaultSport === 'swim_pool' ? 'swim_open' : s.defaultSport;
+  const [sport, setSport] = useState<Sport>(sports.includes(first) ? first : sports[0]);
   const [panel, setPanel] = useState(false);
   const next = upcoming(s.events)[0];
   const history = allRows();
@@ -37,7 +40,16 @@ export default function Home({
 
   // Ask first, so a run is never recorded as a ride by accident.
   const confirmStart = () => {
-    if (sport === 'swim_pool') return onPool();
+    if (sport === 'swim_open') {
+      const canOpen = s.sports.includes('swim_open');
+      const canPool = s.sports.includes('swim_pool');
+      Alert.alert('Start a swim?', 'Where are you swimming?', [
+        { text: 'Change sport', style: 'cancel' },
+        ...(canOpen ? [{ text: 'Open water (GPS)', onPress: () => onStart('swim_open') }] : []),
+        ...(canPool ? [{ text: 'Pool (log lengths)', onPress: onPool }] : []),
+      ]);
+      return;
+    }
     Alert.alert(`Start a ${NOUN[sport]}?`, `${TAB[sport].toUpperCase()} is selected.`, [
       { text: 'Change sport', style: 'cancel' },
       { text: `Start ${NOUN[sport]}`, onPress: () => onStart(sport) },
@@ -115,7 +127,7 @@ export default function Home({
           >
             <Text style={{ color: '#fff', fontSize: 30, fontWeight: '800', letterSpacing: 1 }}>{recording ? 'LIVE' : TAB[sport].toUpperCase()}</Text>
             <Text style={{ color: '#ffd5d5', fontSize: 14, fontWeight: '700', letterSpacing: 2, marginTop: 4 }}>
-              {recording ? 'BACK TO SESSION' : sport === 'swim_pool' ? 'LOG' : 'START'}
+              {recording ? 'BACK TO SESSION' : 'START'}
             </Text>
           </Pressable>
         </View>
@@ -123,10 +135,9 @@ export default function Home({
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Pressable onPress={onProfile} hitSlop={10} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 }}>
             <Avatar uri={s.photoUri} name={s.name} />
-            <Text numberOfLines={1} style={{ color: C.text, fontSize: 15, fontWeight: '600', flexShrink: 1 }}>{s.name || 'Set up profile'}</Text>
+            {s.name ? null : <Text style={{ color: C.text, fontSize: 15, fontWeight: '600' }}>Set up profile</Text>}
           </Pressable>
           <View style={{ flexDirection: 'row', gap: 18 }}>
-            <Pressable onPress={onStats} hitSlop={12}><Text style={{ color: C.text, fontSize: 15, fontWeight: '600' }}>Stats</Text></Pressable>
             <Pressable onPress={onHistory} hitSlop={12}><Text style={{ color: C.text, fontSize: 15, fontWeight: '600' }}>History ›</Text></Pressable>
           </View>
         </View>
