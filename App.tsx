@@ -13,11 +13,12 @@ import SessionScreen from './src/screens/SessionScreen.tsx';
 import History from './src/screens/History.tsx';
 import PoolLog from './src/screens/PoolLog.tsx';
 import SettingsScreen from './src/screens/SettingsScreen.tsx';
+import Profile from './src/screens/Profile.tsx';
 import type { Sport } from './src/lib/geo.ts';
 
 type Route =
   | { name: 'loading' } | { name: 'wizard' } | { name: 'home' } | { name: 'live' } | { name: 'history' }
-  | { name: 'pool' } | { name: 'settings' } | { name: 'session'; id: string; fresh?: boolean };
+  | { name: 'pool' } | { name: 'settings' } | { name: 'profile' } | { name: 'session'; id: string; fresh?: boolean };
 
 export default function App() {
   const [route, setRoute] = useState<Route>({ name: 'loading' });
@@ -67,7 +68,8 @@ export default function App() {
     case 'home':
       screen = (
         <Home onStart={startSport} onPool={() => setRoute({ name: 'pool' })} onHistory={() => setRoute({ name: 'history' })}
-          onSettings={() => setRoute({ name: 'settings' })} syncNote={syncNote} />
+          onSettings={() => setRoute({ name: 'settings' })} onProfile={() => setRoute({ name: 'profile' })}
+          onSync={async () => setSyncNote((await syncAll()).message)} syncNote={syncNote} />
       );
       break;
     case 'live':
@@ -81,6 +83,9 @@ export default function App() {
       break;
     case 'pool':
       screen = <PoolLog onSaved={(id) => setRoute({ name: 'session', id, fresh: true })} onBack={goHome} />;
+      break;
+    case 'profile':
+      screen = <Profile onBack={goHome} />;
       break;
     case 'settings':
       screen = (

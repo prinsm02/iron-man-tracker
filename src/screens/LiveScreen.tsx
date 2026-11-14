@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Polyline } from 'react-native-maps';
 import { useKeepAwake } from 'expo-keep-awake';
 import { Btn, C, Hero, HoldBtn, Stat, T } from '../ui/kit.tsx';
-import { activeSeconds, getLive, onLive, pause, resume, finish, type Live } from '../tracking/tracker.ts';
+import { activeSeconds, currentSpeed, getLive, onLive, pause, resume, finish, type Live } from '../tracking/tracker.ts';
 import { getSettings } from '../lib/settings.ts';
 import { fmtDuration, fmtPace, kmh, SPORT_LABEL } from '../lib/geo.ts';
 
@@ -34,6 +34,7 @@ export default function LiveScreen({ onFinished }: { onFinished: (id: string | n
   }, [live.path.length]);
 
   const secs = activeSeconds();
+  const speedNow = currentSpeed();
   const swim = live.sport.startsWith('swim');
   const bike = live.sport === 'bike';
   const per = swim ? 100 : 1000;
@@ -49,7 +50,7 @@ export default function LiveScreen({ onFinished }: { onFinished: (id: string | n
       {s.keepScreenOn ? <KeepAwake /> : null}
       <View style={{ flex: 1, padding: 20, gap: 14 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-          <Text style={[T.label, { color: paused ? C.warn : C.coral }]}>● {paused ? 'Paused' : SPORT_LABEL[live.sport]}</Text>
+          <Text style={[T.label, { color: !live.gpsReady || paused ? C.warn : C.coral }]}>● {!live.gpsReady ? 'Finding GPS, stand still' : live.status === 'paused' ? 'Paused' : live.autoPaused ? 'Auto-paused' : SPORT_LABEL[live.sport]}</Text>
           <Text style={[T.label, { color: gpsOk ? C.ok : C.warn }]}>{live.gpsAccuracy == null ? 'Finding GPS' : gpsOk ? 'GPS' : 'Weak GPS'}</Text>
         </View>
 
@@ -66,8 +67,8 @@ export default function LiveScreen({ onFinished }: { onFinished: (id: string | n
           <View style={{ flexDirection: 'row', marginTop: 8 }}>
             <Stat label="Distance" value={swim ? `${Math.round(live.distanceM)}` : (live.distanceM / 1000).toFixed(2)} unit={swim ? 'm' : 'km'} />
             {bike
-              ? <Stat label="Speed" value={kmh(live.lastSpeedMs).toFixed(1)} unit="km/h" />
-              : <Stat label="Pace" value={fmtPace(live.lastSpeedMs, per)} unit={swim ? '/100m' : '/km'} />}
+              ? <Stat label="Speed" value={kmh(speedNow).toFixed(1)} unit="km/h" />
+              : <Stat label="Pace" value={fmtPace(speedNow, per)} unit={swim ? '/100m' : '/km'} />}
           </View>
         </Hero>
 

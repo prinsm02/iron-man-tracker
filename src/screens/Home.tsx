@@ -1,22 +1,28 @@
-// Home: one hero number (this week's km), a sport switch, one big start button, the next race.
+// Home: menu, this week's km, your next event, sport switch, one big start button, profile + history.
 import React, { useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { C, Chip, Hero, T } from '../ui/kit.tsx';
+import SidePanel, { type PanelTarget } from '../ui/SidePanel.tsx';
 import { getSettings } from '../lib/settings.ts';
 import { listFinished } from '../lib/db.ts';
-import { nextRace } from '../lib/races.ts';
+import { upcoming } from '../lib/events.ts';
 import type { Sport, Stats } from '../lib/geo.ts';
 import type { SessionMeta } from '../lib/export.ts';
 
 const TAB: Record<Sport, string> = { run: 'Run', bike: 'Bike', swim_open: 'Swim', swim_pool: 'Pool' };
 
 export default function Home({
-  onStart, onPool, onHistory, onSettings, syncNote,
-}: { onStart: (s: Sport) => void; onPool: () => void; onHistory: () => void; onSettings: () => void; syncNote: string }) {
+  onStart, onPool, onHistory, onSettings, onProfile, onSync, syncNote,
+}: {
+  onStart: (s: Sport) => void; onPool: () => void; onHistory: () => void; onSettings: () => void;
+  onProfile: () => void; onSync: () => void; syncNote: string;
+}) {
   const s = getSettings();
   const [sport, setSport] = useState<Sport>(s.defaultSport);
-  const race = nextRace();
+  const [panel, setPanel] = useState(false);
+  const next = upcoming(s.events)[0];
+  const initials = (s.name || 'Me').split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
 
   const week = useMemo(() => {
     const now = new Date();
@@ -33,12 +39,15 @@ export default function Home({
     return t;
   }, []);
 
+  const go = (t: PanelTarget) => (t === 'profile' ? onProfile() : t === 'history' ? onHistory() : t === 'settings' ? onSettings() : onSync());
+
   return (
     <SafeAreaView style={T.screen}>
-      <View style={{ flex: 1, padding: 20, gap: 22 }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+      <SidePanel open={panel} onClose={() => setPanel(false)} onGo={go} />
+      <View style={{ flex: 1, padding: 20, gap: 20 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          <Pressable onPress={() => setPanel(true)} hitSlop={14}><Text style={{ color: C.text, fontSize: 22 }}>☰</Text></Pressable>
           <Text style={[T.h2, { fontSize: 17 }]}>Iron Man</Text>
-          <Pressable onPress={onSettings} hitSlop={14}><Text style={{ color: C.dim, fontSize: 22 }}>⚙</Text></Pressable>
         </View>
 
         <Hero>
@@ -46,10 +55,15 @@ export default function Home({
           <Text style={[T.big, { fontSize: 64, marginTop: 4 }]}>
             {week.all.toFixed(1)}<Text style={{ fontSize: 18, color: C.dim, textShadowRadius: 0 }}> km</Text>
           </Text>
-          <Text style={[T.small, { marginTop: 6 }]}>
-            Run {week.run.toFixed(1)} · Bike {week.bike.toFixed(1)} · Swim {week.swim.toFixed(1)}
-          </Text>
+          <Text style={[T.small, { marginTop: 6 }]}>Run {week.run.toFixed(1)} · Bike {week.bike.toFixed(1)} · Swim {week.swim.toFixed(1)}</Text>
         </Hero>
+
+        {next ? (
+          <Pressable onPress={onProfile} style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 7, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: C.line, backgroundColor: C.card2 }}>
+            <Text style={{ color: C.text, fontSize: 13 }}>{next.name}</Text>
+            <Text style={{ color: C.coral, fontSize: 13, fontWeight: '700' }}>{next.days === 0 ? 'today' : `${next.days}d`}</Text>
+          </Pressable>
+        ) : null}
 
         <View style={{ flexDirection: 'row' }}>
           {s.sports.map((sp) => <Chip key={sp} label={TAB[sp]} selected={sport === sp} onPress={() => setSport(sp)} />)}
@@ -68,14 +82,13 @@ export default function Home({
           </Pressable>
         </View>
 
-        <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-          {race ? (
-            <View>
-              <Text style={T.label}>Next race</Text>
-              <Text style={[T.small, { color: C.text, marginTop: 2 }]}>{race.name}</Text>
-              <Text style={[T.big, { fontSize: 22 }]}>{race.days} days</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Pressable onPress={onProfile} hitSlop={10} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ color: C.coral, fontWeight: '700' }}>{initials}</Text>
             </View>
-          ) : <View />}
+            <Text style={{ color: C.text, fontSize: 15, fontWeight: '600' }}>{s.name ? 'Profile' : 'Set up profile'}</Text>
+          </Pressable>
           <Pressable onPress={onHistory} hitSlop={12}><Text style={{ color: C.text, fontSize: 15, fontWeight: '600' }}>History ›</Text></Pressable>
         </View>
         {syncNote ? <Text style={[T.small, { textAlign: 'center', marginTop: -10 }]}>{syncNote}</Text> : null}

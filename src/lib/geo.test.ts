@@ -1,7 +1,8 @@
 // Run with: node --test src/lib/geo.test.ts   (Node 23+ strips TypeScript types natively)
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { haversine, acceptFix, computeStats, AutoPause, fmtPace, fmtDuration, estimateKcal } from './geo.ts';
+import { haversine, acceptFix, computeStats, TrackFilter, fmtPace, fmtDuration, estimateKcal, profile } from './geo.ts';
+import { upcoming, daysTo } from './events.ts';
 import type { TrackPoint, Fix } from './geo.ts';
 import { buildGpx, csvRow } from './export.ts';
 import type { SessionMeta } from './export.ts';
@@ -66,29 +67,83 @@ test('computeStats: elevation with 2 m dead band ignores noise', () => {
   assert.ok(s.elevGainM >= 46 && s.elevGainM <= 49, `gain ${s.elevGainM}`);
 });
 
-test('AutoPause pauses after 6 s standing still and resumes when moving', () => {
-  const ap = new AutoPause('run', true);
-  const pts = [
-    ...track(5, 10, 3.6),
-  ];
-  let prev: Fix | null = null;
-  for (const p of pts) { assert.equal(ap.update(prev, p), true); prev = p; }
-  // stand still for 10 s at robots
-  const still = { ...prev!, speed: 0 };
-  for (let s = 1; s <= 10; s++) {
-    const p = { ...still, t: prev!.t + 1000 };
-    ap.update(prev, p);
-    prev = p;
-  }
-  assert.equal(ap.moving, false);
-  const go = { ...prev!, t: prev!.t + 3600, lat: prev!.lat + 10 / M_PER_DEG, speed: 2.8 };
-  assert.equal(ap.update(prev, go), true);
+// ---- live GPS filter (the bug Matthew found: a few steps on bike mode showed 14-19 km/h) ----
+// Deterministic "random" so the test is repeatable.
+function rng(seed: number) { return () => ((seed = (seed * 16807) % 2147483647) / 2147483647); }
+const t0 = Date.UTC(2026, 10, 14, 13, 30, 0);
+const fixAt = (i: number, northM: number, jitterM: number, acc: number, r: () => number): Fix => ({
+  t: t0 + i * 1000,
+  lat: -26.18 + (northM + (r() - 0.5) * 2 * jitterM) / M_PER_DEG,
+  lon: 28.0 + ((r() - 0.5) * 2 * jitterM) / M_PER_DEG,
+  alt: 1750, acc, speed: 5, // chip speed deliberately wrong: the filter must not trust it
+});
+function run(f: TrackFilter, fixes: Fix[]) {
+  let dist = 0;
+  const pts: TrackPoint[] = [];
+  for (const x of fixes) for (const o of f.push(x)) { dist += o.countedM; pts.push(o.point); }
+  return { dist, pts };
+}
+
+test('filter: nothing counts until 3 fixes in a row are accurate', () => {
+  const r = rng(1);
+  const f = new TrackFilter('bike', true);
+  const bad = Array.from({ length: 5 }, (_, i) => fixAt(i, 0, 15, 30, r));
+  assert.equal(run(f, bad).pts.length, 0);
+  assert.equal(f.ready, false);
+  const good = Array.from({ length: 3 }, (_, i) => fixAt(5 + i, 0, 2, 8, r));
+  run(f, good);
+  assert.equal(f.ready, true);
 });
 
-test('AutoPause disabled always moving', () => {
-  const ap = new AutoPause('bike', false);
-  const a = track(2, 0, 10, { speed: 0 });
-  assert.equal(ap.update(a[0], a[1]), true);
+test('filter: standing still with GPS drift on bike mode = 0 km, 0 km/h, auto-pauses', () => {
+  const r = rng(7);
+  const f = new TrackFilter('bike', true);
+  const fixes = Array.from({ length: 40 }, (_, i) => fixAt(i, 0, 3, 8, r)); // +-3 m wander, 8 m accuracy
+  const { dist } = run(f, fixes);
+  assert.equal(dist, 0);
+  assert.equal(f.speed(fixes[fixes.length - 1].t), 0);
+  assert.equal(f.moving, false);
+});
+
+test('filter: walking a few steps on bike mode does not count as riding', () => {
+  const r = rng(3);
+  const f = new TrackFilter('bike', true);
+  const fixes = Array.from({ length: 30 }, (_, i) => fixAt(i, i < 3 ? 0 : (i - 3) * 1.3, 2, 6, r));
+  const { dist } = run(f, fixes);
+  assert.equal(dist, 0, `counted ${dist} m`);
+  assert.equal(f.speed(fixes[fixes.length - 1].t), 0);
+});
+
+test('filter: a real 1 km ride at 25 km/h with 2 m jitter measures 1 km within 3%', () => {
+  const r = rng(11);
+  const f = new TrackFilter('bike', true);
+  const v = 25 / 3.6;
+  const fixes = Array.from({ length: 3 + 145 }, (_, i) => fixAt(i, i < 3 ? 0 : (i - 3) * v, 2, 5, r));
+  const { dist } = run(f, fixes);
+  assert.ok(Math.abs(dist - 1000) < 30, `distance ${dist}`);
+  const sp = f.speed(fixes[fixes.length - 1].t) * 3.6;
+  assert.ok(sp > 22 && sp < 28, `speed ${sp} km/h`);
+});
+
+test('filter: a run at 6:00/km counts, then auto-pauses at the robot and resumes', () => {
+  const r = rng(5);
+  const f = new TrackFilter('run', true);
+  const v = 1000 / 360;
+  const fixes: Fix[] = [];
+  for (let i = 0; i < 3; i++) fixes.push(fixAt(i, 0, 1, 5, r));
+  for (let i = 3; i < 63; i++) fixes.push(fixAt(i, (i - 3) * v, 1, 5, r)); // 60 s running
+  const stopAt = 60 * v;
+  for (let i = 63; i < 83; i++) fixes.push(fixAt(i, stopAt, 2, 6, r)); // 20 s at the robot
+  const first = run(f, fixes);
+  assert.equal(f.moving, false);
+  assert.ok(Math.abs(first.dist - 60 * v) < 12, `distance ${first.dist}`);
+  const more = Array.from({ length: 30 }, (_, k) => fixAt(83 + k, stopAt + (k + 1) * v, 1, 5, r));
+  const second = run(f, more);
+  assert.equal(f.moving, true);
+  // the saved summary (computeStats over the stored points) must equal what the live screen counted
+  const saved = computeStats([...first.pts, ...second.pts]);
+  assert.ok(Math.abs(saved.distanceM - (first.dist + second.dist)) < 0.01, `saved ${saved.distanceM} live ${first.dist + second.dist}`);
+  assert.ok(saved.movingS < 95, `moving ${saved.movingS} s (robot stop must not count)`);
 });
 
 const meta: SessionMeta = {
@@ -127,4 +182,23 @@ test('calories: run ~1 kcal/kg/km, bike by speed', () => {
   assert.equal(estimateKcal('run', 55, 10000, 3600), 550);
   assert.equal(estimateKcal('bike', 55, 28000, 3600), 660); // 28 km/h -> MET 12
   assert.equal(estimateKcal('bike', 55, 15000, 3600), 220); // 15 km/h -> MET 4
+});
+
+test('profile: 1 km run gives 10 points of 100 m with the right pace and climb', () => {
+  const pts = track(101, 10, 3.6).map((p, i) => ({ ...p, alt: 1600 + i * 0.5 }));
+  const pr = profile(pts, 100);
+  assert.equal(pr.length, 10);
+  assert.equal(fmtPace(pr[0].speed), '6:00');
+  assert.ok(pr[9].alt! > pr[0].alt!);
+});
+
+test('events: only upcoming, soonest first', () => {
+  const now = new Date(2026, 10, 14);
+  const ev = [
+    { id: 'a', name: 'Later', date: '2027-04-18', kind: 'Triathlon' },
+    { id: 'b', name: 'Past', date: '2026-01-01', kind: 'Run' },
+    { id: 'c', name: 'Soon', date: '2026-11-29', kind: 'Run' },
+  ];
+  assert.deepEqual(upcoming(ev, now).map((e) => e.name), ['Soon', 'Later']);
+  assert.equal(daysTo('2026-11-29', now), 15);
 });

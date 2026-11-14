@@ -3,6 +3,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import type { Sport } from './geo.ts';
 
+export interface AppEvent {
+  id: string;
+  name: string; // e.g. 'Soweto Marathon'
+  date: string; // YYYY-MM-DD
+  kind: string; // Run / Bike / Swim / Triathlon / Other
+}
+
 export interface Settings {
   setupDone: boolean;
   sports: Sport[]; // which sports appear on the home screen
@@ -20,6 +27,8 @@ export interface Settings {
   bikeName: string;
   poolLengthM: number;
   weightKg: number; // for the calorie estimate
+  name: string; // shown on the profile; empty until the user sets it
+  events: AppEvent[]; // the user's own races and goals, stored only on this phone
 }
 
 export const DEFAULTS: Settings = {
@@ -38,7 +47,9 @@ export const DEFAULTS: Settings = {
   githubRepo: 'prinsm02/iron-man-data',
   bikeName: '',
   poolLengthM: 25,
-  weightKg: 55,
+  weightKg: 70,
+  name: '',
+  events: [],
 };
 
 const KEY = 'ironman.settings.v1';

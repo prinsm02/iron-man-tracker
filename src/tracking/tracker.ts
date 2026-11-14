@@ -4,7 +4,7 @@ import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import * as Speech from 'expo-speech';
 import { Pedometer } from 'expo-sensors';
-import { acceptFix, smooth, AutoPause, computeStats, haversine, fmtPace, fmtDuration, kmh, estimateKcal } from '../lib/geo.ts';
+import { TrackFilter, computeStats, fmtPace, fmtDuration, kmh, estimateKcal } from '../lib/geo.ts';
 import type { Fix, Sport, TrackPoint, Stats } from '../lib/geo.ts';
 import { createSession, insertPoint, getPoints, setStatus, openSession, finishSession } from '../lib/db.ts';
 import type { SessionMeta } from '../lib/export.ts';
@@ -28,17 +28,16 @@ export interface Live {
   mode: 'background' | 'foreground' | 'none';
   splitM: number; // 1000 (run/bike) or 100 (swim)
   splits: number[]; // seconds for each completed km (or 100 m)
+  gpsReady: boolean; // false until the GPS has a solid lock; nothing counts before that
 }
 
 const blank = (): Live => ({
   id: null, sport: 'run', status: 'idle', startedAt: 0, autoPaused: false, distanceM: 0, activeMs: 0,
-  lastSpeedMs: 0, gpsAccuracy: null, path: [], mode: 'none', splitM: 1000, splits: [],
+  lastSpeedMs: 0, gpsAccuracy: null, path: [], mode: 'none', splitM: 1000, splits: [], gpsReady: false,
 });
 
 let live: Live = blank();
-let lastKept: Fix | null = null;
-let lastKeptMoving = false;
-let autoPause = new AutoPause('run', true);
+let filter = new TrackFilter('run', true);
 let tickAt = 0; // wall clock of the last activeMs update
 let nextCallout = 0; // metres
 let splitD = 0; // metres into the current split
@@ -60,9 +59,11 @@ function calloutStep(sport: Sport): number {
   return s.voiceEveryMSwim;
 }
 
-/** Update activeMs up to now (only counts while recording and not auto-paused). */
+const clockRunning = () => live.status === 'recording' && live.gpsReady && !live.autoPaused;
+
+/** Update activeMs up to now (only counts while recording, GPS locked and not auto-paused). */
 function tick(now = Date.now()) {
-  if (live.status === 'recording' && !live.autoPaused && tickAt) live.activeMs += now - tickAt;
+  if (clockRunning() && tickAt) live.activeMs += now - tickAt;
   tickAt = now;
 }
 
@@ -103,24 +104,16 @@ export function handleLocations(locs: Location.LocationObject[]) {
       speed: l.coords.speed ?? null,
     };
     live.gpsAccuracy = raw.acc;
-    if (lastKept && raw.t <= lastKept.t) continue;
-    if (!acceptFix(lastKept, raw, live.sport)) continue;
-    const fix = smooth(lastKept, raw, live.sport);
-    tick(fix.t);
-    let moving = autoPause.update(lastKept, fix);
-    if (live.status === 'paused') moving = false;
+    if (live.status === 'paused') continue; // manual pause: ignore GPS until Resume
+    const wasReady = live.gpsReady;
     const wasAuto = live.autoPaused;
-    live.autoPaused = live.status === 'recording' && !moving;
-    if (live.status === 'recording' && wasAuto !== live.autoPaused) {
-      speak(live.autoPaused ? 'Auto paused' : 'Resumed');
-    }
-    const pt: TrackPoint = { ...fix, moving };
-    insertPoint(live.id, pt);
-    if (moving) {
-      // Same rule as computeStats(): count a segment only when both ends are moving.
-      if (lastKept && lastKeptMoving) {
-        let d = haversine(lastKept, fix);
-        let dt = (fix.t - lastKept.t) / 1000;
+    tick(Math.max(tickAt, raw.t));
+    for (const o of filter.push(raw)) {
+      insertPoint(live.id, o.point);
+      if (o.point.moving) live.path.push({ latitude: o.point.lat, longitude: o.point.lon });
+      if (o.countedM > 0) {
+        let d = o.countedM;
+        let dt = o.dtS;
         live.distanceM += d;
         // per-km (per-100 m for swims) split times, interpolated at the exact crossing point
         while (d > 0 && splitD + d >= live.splitM) {
@@ -133,20 +126,24 @@ export function handleLocations(locs: Location.LocationObject[]) {
         }
         splitD += d;
         splitT += dt;
+        if (live.distanceM >= nextCallout) {
+          callout();
+          nextCallout += calloutStep(live.sport);
+        }
       }
-      live.path.push({ latitude: pt.lat, longitude: pt.lon });
-      live.lastSpeedMs = fix.speed != null && fix.speed >= 0 ? fix.speed : live.lastSpeedMs;
-      if (live.distanceM >= nextCallout) {
-        callout();
-        nextCallout += calloutStep(live.sport);
-      }
-    } else {
-      live.lastSpeedMs = 0;
     }
-    lastKeptMoving = moving;
-    lastKept = fix;
+    live.gpsReady = filter.ready;
+    live.autoPaused = live.gpsReady && !filter.moving;
+    if (!wasReady && live.gpsReady) speak('GPS locked');
+    else if (wasReady && wasAuto !== live.autoPaused) speak(live.autoPaused ? 'Auto paused' : 'Resumed');
   }
+  live.lastSpeedMs = currentSpeed();
   emit();
+}
+
+/** Current speed (m/s) from real distance over the last 10 s; 0 when standing still. */
+export function currentSpeed(): number {
+  return live.status === 'recording' ? filter.speed(Date.now()) : 0;
 }
 
 TaskManager.defineTask<{ locations: Location.LocationObject[] }>(TASK, async ({ data, error }) => {
@@ -171,7 +168,7 @@ export async function ensurePermissions(): Promise<PermissionResult> {
 async function startGps(sport: Sport) {
   const opts = {
     accuracy: Location.Accuracy.BestForNavigation,
-    distanceInterval: sport === 'bike' ? 5 : 3,
+    distanceInterval: 0, // every fix (~1 per second): the filter decides what counts, and auto-pause needs fixes while standing
     activityType: Location.ActivityType.Fitness,
     pausesUpdatesAutomatically: false,
     showsBackgroundLocationIndicator: true,
@@ -203,11 +200,9 @@ async function stopGps() {
 }
 
 function resetCounters(sport: Sport) {
-  lastKept = null;
-  lastKeptMoving = false;
   splitD = 0;
   splitT = 0;
-  autoPause = new AutoPause(sport, getSettings().autoPause && sport !== 'swim_pool');
+  filter = new TrackFilter(sport, getSettings().autoPause && sport !== 'swim_pool');
   nextCallout = calloutStep(sport);
 }
 
@@ -229,7 +224,13 @@ export function pause() {
   tick();
   live.status = 'paused';
   live.autoPaused = false;
-  if (live.id) setStatus(live.id, 'paused');
+  if (live.id) {
+    setStatus(live.id, 'paused');
+    // pause marker, so the time and distance while paused never count
+    const last = live.path[live.path.length - 1];
+    if (last) insertPoint(live.id, { t: Date.now(), lat: last.latitude, lon: last.longitude, alt: null, acc: null, speed: null, moving: false });
+  }
+  filter.breakSegment();
   speak('Paused');
   emit();
 }
@@ -238,6 +239,7 @@ export function resume() {
   if (live.status !== 'paused') return;
   tickAt = Date.now();
   live.status = 'recording';
+  filter.breakSegment();
   if (live.id) setStatus(live.id, 'recording');
   speak('Resumed');
   emit();
@@ -246,7 +248,7 @@ export function resume() {
 /** Live clock for the screen (adds the time since the last fix). */
 export function activeSeconds(): number {
   let ms = live.activeMs;
-  if (live.status === 'recording' && !live.autoPaused && tickAt) ms += Date.now() - tickAt;
+  if (clockRunning() && tickAt) ms += Date.now() - tickAt;
   return ms / 1000;
 }
 
@@ -306,8 +308,10 @@ export async function restore(): Promise<boolean> {
   if (part && part.distanceM < unit - 1) { splitD = part.distanceM; splitT = part.durationS; }
   const last = points[points.length - 1];
   if (last) {
-    lastKept = last;
-    lastKeptMoving = last.moving;
+    // the app was closed, so the gap until now must not count: start a fresh segment from the last point
+    filter.breakSegment(last);
+    live.gpsReady = true;
+    insertPoint(row.id, { ...last, t: Date.now(), moving: false });
   }
   while (nextCallout <= live.distanceM) nextCallout += calloutStep(row.sport);
   tickAt = Date.now();
