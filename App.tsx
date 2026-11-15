@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, Text, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Alert, AppState, ScrollView, View, useWindowDimensions, type ScrollViewInstance } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { C } from './src/ui/kit.tsx';
 import { loadSettings, getSettings, saveSettings } from './src/lib/settings.ts';
-import { syncAll } from './src/lib/github.ts';
+import { AUTO_UPLOAD_DELAY_MS, syncAll } from './src/lib/github.ts';
 import { loadHistory, refreshHistory, refreshEvents } from './src/lib/history.ts';
 import { ensurePermissions, restore, start } from './src/tracking/tracker.ts';
 import Wizard from './src/screens/Wizard.tsx';
@@ -29,11 +29,30 @@ export default function App() {
   const [route, setRoute] = useState<Route>({ name: 'loading' });
   const [syncNote, setSyncNote] = useState('');
 
+  const later = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { width } = useWindowDimensions();
+  const pager = useRef<ScrollViewInstance>(null);
+  const [pageH, setPageH] = useState(0);
+
   const sync = async () => {
     const r = await syncAll();
     await refreshHistory();
     await refreshEvents();
-    if (r.done || r.failed) setSyncNote(r.message);
+    if (r.message) setSyncNote(r.message);
+  };
+
+  // Automatic upload 5 minutes after a session ends (time to name it first). Save uploads it at once.
+  const uploadLater = () => {
+    if (later.current) clearTimeout(later.current);
+    later.current = setTimeout(() => { later.current = null; sync(); }, AUTO_UPLOAD_DELAY_MS + 5000);
+  };
+
+  const uploadNow = async () => {
+    setSyncNote('Uploading…');
+    const r = await syncAll({ manual: true });
+    setSyncNote(r.message);
+    if (r.failed || /Settings/.test(r.message)) Alert.alert('Upload to GitHub', r.message);
+    await refreshHistory();
   };
 
   useEffect(() => {
@@ -58,11 +77,11 @@ export default function App() {
   const startSport = async (sport: Sport) => {
     const perm = await ensurePermissions();
     if (perm === 'denied') {
-      Alert.alert('Location is off', 'Allow location for Iron Man in iPhone Settings to record.');
+      Alert.alert('Location is off', 'Allow location for Mzansi Go in iPhone Settings to record.');
       return;
     }
     if (perm === 'whenInUse' && !getSettings().keepScreenOn) {
-      Alert.alert('Screen-locked recording needs "Always"', 'Set iPhone Settings > Iron Man > Location to "Always". Until then keep the screen on during the session.');
+      Alert.alert('Screen-locked recording needs "Always"', 'Set iPhone Settings > Mzansi Go > Location to "Always". Until then keep the screen on during the session.');
     }
     await start(sport);
     setRoute({ name: 'live' });
@@ -79,24 +98,35 @@ export default function App() {
       screen = <Wizard onDone={goHome} />;
       break;
     case 'home':
+    case 'history': {
+      // Home and History sit side by side: swipe right on Home to see History, swipe left to come back.
+      const toHome = () => pager.current?.scrollTo({ x: width, animated: true });
+      const toHistory = () => pager.current?.scrollTo({ x: 0, animated: true });
       screen = (
-        <Home onStart={startSport} onPool={() => setRoute({ name: 'pool' })} onHistory={() => setRoute({ name: 'history' })}
-          onSettings={() => setRoute({ name: 'settings' })} onProfile={() => setRoute({ name: 'profile' })} onEvents={() => setRoute({ name: 'events' })}
-          onStats={() => setRoute({ name: 'stats' })} onBackToLive={() => setRoute({ name: 'live' })}
-          onSync={async () => setSyncNote((await syncAll()).message)} syncNote={syncNote} />
+        <ScrollView ref={pager} horizontal pagingEnabled bounces={false} showsHorizontalScrollIndicator={false}
+          contentOffset={{ x: route.name === 'history' ? 0 : width, y: 0 }} keyboardShouldPersistTaps="handled"
+          style={{ flex: 1 }} onLayout={(e) => setPageH(e.nativeEvent.layout.height)}>
+          <View style={{ width, height: pageH || undefined }}>
+            <History onOpen={(id) => setRoute({ name: 'session', id })} onBack={toHome} />
+          </View>
+          <View style={{ width, height: pageH || undefined }}>
+            <Home onStart={startSport} onPool={() => setRoute({ name: 'pool' })} onHistory={toHistory}
+              onSettings={() => setRoute({ name: 'settings' })} onProfile={() => setRoute({ name: 'profile' })} onEvents={() => setRoute({ name: 'events' })}
+              onStats={() => setRoute({ name: 'stats' })} onBackToLive={() => setRoute({ name: 'live' })}
+              onSync={uploadNow} syncNote={syncNote} />
+          </View>
+        </ScrollView>
       );
       break;
+    }
     case 'live':
-      screen = <LiveScreen onBack={() => setRoute({ name: 'home' })} onFinished={(id) => setRoute(id ? { name: 'session', id, fresh: true } : { name: 'home' })} />;
+      screen = <LiveScreen onBack={() => setRoute({ name: 'home' })} onFinished={(id) => { if (id) uploadLater(); setRoute(id ? { name: 'session', id, fresh: true } : { name: 'home' }); }} />;
       break;
     case 'session':
       screen = <SessionScreen key={route.id} id={route.id} fresh={route.fresh} onClose={goHome} />;
       break;
-    case 'history':
-      screen = <History onOpen={(id) => setRoute({ name: 'session', id })} onBack={goHome} />;
-      break;
     case 'pool':
-      screen = <PoolLog onSaved={(id) => setRoute({ name: 'session', id, fresh: true })} onBack={goHome} />;
+      screen = <PoolLog onSaved={(id) => { uploadLater(); setRoute({ name: 'session', id, fresh: true }); }} onBack={goHome} />;
       break;
     case 'profile':
       screen = <Profile onBack={goHome} onEvents={() => setRoute({ name: 'events' })} />;

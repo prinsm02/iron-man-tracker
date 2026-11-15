@@ -31,7 +31,8 @@ export const logDay = (ms: number) => DAYS[new Date(ms).getDay()];
 export function baseName(meta: SessionMeta): string {
   const d = new Date(meta.startedAt);
   const p = (n: number) => String(n).padStart(2, '0');
-  const label = SPORT_LABEL[meta.sport].replace(/[^A-Za-z]+/g, ' ').trim().replace(/ /g, '-');
+  // file names keep pool swims apart from open-water swims (same names as earlier uploads)
+  const label = meta.sport === 'swim_pool' ? 'Swim-pool' : SPORT_LABEL[meta.sport].replace(/[^A-Za-z]+/g, ' ').trim().replace(/ /g, '-');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}${p(d.getMinutes())} ${label}`;
 }
 
@@ -43,7 +44,7 @@ export function buildGpx(meta: SessionMeta, points: TrackPoint[]): string {
   const out: string[] = [];
   out.push('<?xml version="1.0" encoding="UTF-8"?>');
   out.push(
-    '<gpx version="1.1" creator="Iron Man Tracker" xmlns="http://www.topografix.com/GPX/1/1">',
+    '<gpx version="1.1" creator="Mzansi Go" xmlns="http://www.topografix.com/GPX/1/1">',
   );
   out.push(`<metadata><time>${new Date(meta.startedAt).toISOString()}</time></metadata>`);
   out.push(`<trk><name>${esc(baseName(meta))}</name><type>${type}</type>`);
@@ -85,7 +86,7 @@ export const SWIM_HEADER =
 export function csvRow(meta: SessionMeta, s: Stats): { file: 'runs.csv' | 'rides.csv' | 'swims.csv'; header: string; line: string } {
   const date = logDate(meta.startedAt);
   const day = logDay(meta.startedAt);
-  const src = 'Iron Man app';
+  const src = 'Mzansi Go app';
   if (meta.sport === 'run') {
     const kms = [0, 1, 2, 3, 4].map((i) => {
       const sp = s.splits[i];

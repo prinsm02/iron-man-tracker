@@ -1,16 +1,20 @@
 // Summary. Distance + time on top, then swipe: Route > Elevation > Pace (with km splits) > Details.
 // Details only shows numbers that are not already on screen (Strava/Garmin style key stats, kept minimal).
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, Switch, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import MapView, { Marker, Polyline } from 'react-native-maps';
+import * as Location from 'expo-location';
+import * as Haptics from 'expo-haptics';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { BackBar, Btn, C, Chip, GBar, Hero, Stat, T } from '../ui/kit.tsx';
+import { BackBar, Btn, C, GBar, Hero, Pill, Stat, T } from '../ui/kit.tsx';
+import RouteMap from '../ui/RouteMap.tsx';
 import Chart from '../ui/Chart.tsx';
 import { deleteSession, getPoints, getSession, updateMeta } from '../lib/db.ts';
 import { buildGpx, baseName, type SessionMeta } from '../lib/export.ts';
 import { fmtDuration, fmtPace, kmh, profile, SPORT_LABEL, type Stats } from '../lib/geo.ts';
+import { routeName, samplePoints } from '../lib/route.ts';
+import { syncAll } from '../lib/github.ts';
 
 const RUN_TYPES = ['Easy', 'Tempo', 'Long', 'Intervals', 'Race'];
 const RIDE_TYPES = ['Outdoor', 'Endurance', 'Hills', 'Race'];
@@ -25,14 +29,40 @@ export default function SessionScreen({ id, onClose, fresh }: { id: string; onCl
   const [page, setPage] = useState(0);
   const stats: Stats = useMemo(() => JSON.parse(row?.stats ?? '{}'), [id]);
   const points = useMemo(() => getPoints(id), [id]);
-  const path = useMemo(() => points.filter((p) => p.moving).map((p) => ({ latitude: p.lat, longitude: p.lon })), [points]);
-  const region = useMemo(() => {
-    if (!path.length) return undefined;
-    const la = path.map((p) => p.latitude), lo = path.map((p) => p.longitude);
-    const a = Math.min(...la), b = Math.max(...la), c = Math.min(...lo), d = Math.max(...lo);
-    return { latitude: (a + b) / 2, longitude: (c + d) / 2, latitudeDelta: Math.max(0.004, (b - a) * 1.4), longitudeDelta: Math.max(0.004, (d - c) * 1.4) };
-  }, [path]);
   const series = useMemo(() => profile(points, meta.sport?.startsWith('swim') ? 50 : 100), [points]);
+  const [naming, setNaming] = useState(false);
+
+  // Route name from the suburbs (or roads) along the way, looked up once when the route has no name yet.
+  useEffect(() => {
+    if (!row || meta.route || meta.sport === 'swim_pool') return;
+    const moving = points.filter((p) => p.moving);
+    if (moving.length < 2) return;
+    let alive = true;
+    setNaming(true);
+    (async () => {
+      try {
+        const places = [];
+        for (const p of samplePoints(moving, 5)) {
+          const r = await Location.reverseGeocodeAsync({ latitude: p.lat, longitude: p.lon });
+          if (r[0]) places.push(r[0]);
+        }
+        const name = routeName(places);
+        if (alive && name) {
+          setMeta((m) => {
+            if (m.route) return m;
+            const next = { ...m, route: name };
+            updateMeta(id, next, stats);
+            return next;
+          });
+        }
+      } catch {
+        // no signal: the route stays empty and can be typed
+      } finally {
+        if (alive) setNaming(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, [id]);
 
   if (!row) {
     return (
@@ -50,6 +80,11 @@ export default function SessionScreen({ id, onClose, fresh }: { id: string; onCl
   const pool = meta.sport === 'swim_pool';
   const per = swim ? 100 : 1000;
   const set = (p: Partial<SessionMeta>) => setMeta((m) => ({ ...m, ...p }));
+  // session type is saved the moment it is tapped
+  const pickType = (t: string) => {
+    Haptics.selectionAsync().catch(() => {});
+    setMeta((m) => { const next = { ...m, runType: t }; updateMeta(id, next, stats); return next; });
+  };
 
   const distM = pool ? (meta.poolLaps ?? 0) * (meta.poolLengthM ?? 0) : stats.distanceM;
   const durS = pool ? meta.manualDurationS ?? 0 : stats.movingS;
@@ -89,17 +124,8 @@ export default function SessionScreen({ id, onClose, fresh }: { id: string; onCl
         ];
 
   const pages: { key: string; title: string; body: React.ReactNode }[] = [];
-  if (region) {
-    pages.push({
-      key: 'route', title: 'Route',
-      body: (
-        <MapView style={{ height: PAGE_H - 30, borderRadius: 12 }} initialRegion={region} userInterfaceStyle="dark" mapType="mutedStandard">
-          <Polyline coordinates={path} strokeColor={C.coral} strokeWidth={4} />
-          <Marker coordinate={path[0]} pinColor="green" />
-          <Marker coordinate={path[path.length - 1]} pinColor="red" />
-        </MapView>
-      ),
-    });
+  if (points.some((p) => p.moving)) {
+    pages.push({ key: 'route', title: 'Route', body: <RouteMap points={points} height={PAGE_H - 30} /> });
   }
   if (!swim && elev.length > 1) {
     pages.push({
@@ -126,7 +152,7 @@ export default function SessionScreen({ id, onClose, fresh }: { id: string; onCl
             width={pageW}
             height={130}
             unit={bike ? 'km/h' : swim ? 'min/100m' : 'min/km'}
-            color={bike ? '#f0f0f0' : C.coral}
+            color={bike ? '#f0f0f0' : '#d93535'}
             fill
             reverse={!bike}
             yFormat={bike ? (v) => v.toFixed(0) : (v) => mmss(v)}
@@ -185,7 +211,8 @@ export default function SessionScreen({ id, onClose, fresh }: { id: string; onCl
       <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 4, gap: 18, paddingBottom: 40 }}>
         <View>
           <Text style={T.label}>{new Date(meta.startedAt).toLocaleDateString('en-ZA', { weekday: 'short', day: 'numeric', month: 'short' })}</Text>
-          <Text style={T.h1}>{SPORT_LABEL[meta.sport]}</Text>
+          <Text style={T.h1}>{SPORT_LABEL[meta.sport]}{meta.runType ? <Text style={{ color: C.coral, fontSize: 18 }}>{`  ${meta.runType}`}</Text> : null}</Text>
+          {pool ? <Text style={T.small}>Pool · {meta.poolLengthM} m lengths</Text> : null}
         </View>
 
         <Hero>
@@ -213,20 +240,23 @@ export default function SessionScreen({ id, onClose, fresh }: { id: string; onCl
         </View>
 
         {!swim ? (
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-            {(bike ? RIDE_TYPES : RUN_TYPES).map((t) => <Chip key={t} label={t} selected={meta.runType === t} onPress={() => set({ runType: t })} />)}
+          <View style={{ gap: 8 }}>
+            <Text style={T.label}>Session type</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {(bike ? RIDE_TYPES : RUN_TYPES).map((t) => <Pill key={t} label={t} selected={meta.runType === t} onPress={() => pickType(t)} />)}
+            </View>
           </View>
         ) : null}
 
-        <TextInput value={meta.route} onChangeText={(t) => set({ route: t })} placeholder="Route" placeholderTextColor={C.dim} style={input} />
+        <TextInput value={meta.route} onChangeText={(t) => set({ route: t })} placeholder={naming ? 'Finding the suburbs…' : 'Route'} placeholderTextColor={C.dim} style={input} />
         <TextInput value={meta.notes} onChangeText={(t) => set({ notes: t })} placeholder="Notes" placeholderTextColor={C.dim} multiline style={[input, { minHeight: 64 }]} />
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Text style={T.body}>Personal best</Text>
           <Switch value={meta.pb} onValueChange={(v) => set({ pb: v })} trackColor={{ true: C.red }} />
         </View>
 
-        <Btn title={fresh ? 'Save' : 'Done'} onPress={() => { updateMeta(id, meta, stats); onClose(); }} />
-        <Text style={[T.small, { lineHeight: 18 }]}>{row.synced ? 'On GitHub' : row.sync_error ? 'Upload failed. It will retry.' : 'Uploads when online'}</Text>
+        <Btn title={fresh ? 'Save' : 'Done'} onPress={() => { updateMeta(id, meta, stats); if (!row.synced) syncAll({ now: id }).catch(() => {}); onClose(); }} />
+        <Text style={[T.small, { lineHeight: 18 }]}>{row.synced ? 'On GitHub' : row.sync_error ? `Upload failed: ${row.sync_error}` : 'Uploads to GitHub when you tap Save, or 5 minutes after finishing'}</Text>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
           {!pool ? <Pressable onPress={shareGpx} hitSlop={8}><Text style={{ color: C.text, fontWeight: '600' }}>Share GPX</Text></Pressable> : <View />}
           <Pressable onPress={remove} hitSlop={8}><Text style={{ color: C.coral, fontWeight: '600' }}>Delete</Text></Pressable>

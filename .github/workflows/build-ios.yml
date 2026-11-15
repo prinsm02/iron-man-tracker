@@ -27,7 +27,7 @@ jobs:
         run: npm ci
 
       - name: Unit tests (GPS maths, GPX, CSV)
-        run: node --experimental-strip-types --test src/lib/geo.test.ts
+        run: node --experimental-strip-types --test src/lib/geo.test.ts src/lib/route.test.ts src/lib/acwr.test.ts
 
       - name: Generate the native iOS project
         run: npx expo prebuild --platform ios --clean --no-install
@@ -44,24 +44,24 @@ jobs:
           echo "Workspace: $WS  Scheme: $SCHEME"
           set -o pipefail
           xcodebuild -workspace "$WS" -scheme "$SCHEME" -configuration Release -sdk iphoneos \
-            -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/IronMan.xcarchive" archive \
+            -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/MzansiGo.xcarchive" archive \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" | tail -60
 
       - name: Package .ipa
         run: |
           cd "$RUNNER_TEMP"
           mkdir -p Payload
-          cp -R IronMan.xcarchive/Products/Applications/*.app Payload/
-          zip -qry IronMan.ipa Payload
-          ls -la IronMan.ipa
+          cp -R MzansiGo.xcarchive/Products/Applications/*.app Payload/
+          zip -qry MzansiGo.ipa Payload
+          ls -la MzansiGo.ipa
 
       - uses: actions/upload-artifact@v4
         with:
-          name: IronMan-ipa
-          path: ${{ runner.temp }}/IronMan.ipa
+          name: MzansiGo-ipa
+          path: ${{ runner.temp }}/MzansiGo.ipa
 
       - name: Attach to release (tag builds only)
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ runner.temp }}/IronMan.ipa
+          files: ${{ runner.temp }}/MzansiGo.ipa

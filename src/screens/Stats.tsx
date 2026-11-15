@@ -4,14 +4,14 @@ import React, { useMemo, useState } from 'react';
 import { ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
-import { BackBar, C, Chip, T } from '../ui/kit.tsx';
+import { BackBar, C, Chip, GBar, Hero, SPORT_COLOR, T } from '../ui/kit.tsx';
 import Chart, { StackedBars, type BarDatum } from '../ui/Chart.tsx';
 import { allRows } from '../lib/history.ts';
 import { acwrSeries, acwrTone, computeAcwr, type LoadSport } from '../lib/acwr.ts';
 import { formatIsoDate } from '../lib/events.ts';
-import type { HistRow } from '../lib/records.ts';
+import { computeRecords, type HistRow } from '../lib/records.ts';
 
-const COL = { run: C.coral, bike: '#f0f0f0', swim: '#5b8def' } as const;
+const COL = { run: '#e84040', bike: '#d9d9d9', swim: SPORT_COLOR.swim } as const;
 const TONE = { ok: C.ok, warn: C.warn, bad: C.bad, dim: C.dim } as const;
 const SPORTS = ['run', 'bike', 'swim'] as const;
 const two = (n: number) => String(n).padStart(2, '0');
@@ -34,6 +34,23 @@ function CardTitle({ title, period }: { title: string; period: string }) {
     <View style={{ gap: 2 }}>
       <Text style={{ color: C.text, fontSize: 16, fontWeight: '700' }}>{title}</Text>
       <Text style={T.label}>{period}</Text>
+    </View>
+  );
+}
+
+/** Section heading like the dashboard: small grey uppercase. */
+function H2({ children }: { children: string }) {
+  return <Text style={[T.label, { fontSize: 12, letterSpacing: 1.2, marginTop: 10 }]}>{children}</Text>;
+}
+
+/** Dashboard stat card: grey label, big number with the red glow, a small line under it, optional red bar. */
+function StatCard({ label, value, sub, pct, color, alt }: { label: string; value: string; sub?: string; pct?: number; color?: string; alt?: boolean }) {
+  return (
+    <View style={{ flexBasis: '48%', flexGrow: 1, borderRadius: 10, borderWidth: 1, borderColor: C.line, backgroundColor: alt ? C.card2 : C.card, paddingVertical: 14, paddingHorizontal: 16 }}>
+      <Text style={T.label}>{label}</Text>
+      <Text style={[T.big, { fontSize: 24, marginTop: 4, color: color ?? C.text }]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
+      {sub ? <Text style={[T.small, { fontSize: 11, marginTop: 3 }]}>{sub}</Text> : null}
+      {pct != null ? <GBar pct={pct} /> : null}
     </View>
   );
 }
@@ -175,7 +192,14 @@ export default function Stats({ onBack }: { onBack: () => void }) {
   const loadMax = loadPeak <= 2 ? 2 : loadPeak <= 2.5 ? 2.5 : Math.ceil(loadPeak);
   const tone = TONE[acwrTone(current.zone)];
 
-  const card = { backgroundColor: C.card, borderRadius: 12, borderWidth: 1, borderColor: C.line, padding: 16, gap: 10 } as const;
+  const card = { backgroundColor: C.card, borderRadius: 10, borderWidth: 1, borderColor: C.line, padding: 16, gap: 10 } as const;
+  const year = String(new Date().getFullYear());
+  const yearRows = rows.filter((r) => r.date.startsWith(year));
+  const yearKm = yearRows.reduce((t, r) => t + r.km, 0);
+  const records = useMemo(() => computeRecords(rows), [rows]);
+  const k7 = current.k7;
+  const k28 = current.k28;
+  const weeksIn = Math.max(1, new Date().getDate() / 7);
   const weekBars = weeks.map((d) => barFrom(d.label, d.title, d));
   const monthBars = months.map((d) => barFrom(d.label, d.title, d));
   const weekHas = weeks.some((d) => sumParts(d) > 0);
@@ -191,6 +215,36 @@ export default function Stats({ onBack }: { onBack: () => void }) {
       <ScrollView nestedScrollEnabled contentContainerStyle={{ padding: 20, paddingTop: 4, gap: 14, paddingBottom: 40 }}>
         <Text style={T.h1}>Stats</Text>
         {!rows.length ? <Text style={[T.small, { lineHeight: 18 }]}>No training logged yet. Charts fill in after a session, or when history is on this phone.</Text> : null}
+
+        <Hero>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', rowGap: 14 }}>
+            <View style={{ width: '50%' }}><Text style={T.label}>{year} km</Text><Text style={[T.big, { fontSize: 34 }]}>{yearKm.toFixed(1)}</Text></View>
+            <View style={{ width: '50%' }}><Text style={T.label}>Sessions</Text><Text style={[T.big, { fontSize: 34 }]}>{yearRows.length}</Text></View>
+            <View style={{ width: '50%' }}><Text style={T.label}>{months[5].title.split(' ')[0]}</Text><Text style={[T.big, { fontSize: 26 }]}>{km1(thisMonth)}</Text></View>
+            <View style={{ width: '50%' }}><Text style={T.label}>{months[4].title.split(' ')[0]}</Text><Text style={[T.big, { fontSize: 26 }]}>{km1(lastMonth)}</Text></View>
+          </View>
+        </Hero>
+
+        <H2>Load</H2>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+          <StatCard label="Last 7 days" value={km1(k7)} sub="all sports" pct={k28 ? Math.min(100, (k7 / Math.max(1, k28 / 4)) * 50) : 0} />
+          <StatCard label="Last 28 days" value={km1(k28)} sub={`${km1(k28 / 4)} a week on average`} alt />
+          <StatCard label="ACWR" value={current.acwr == null ? '—' : current.acwr.toFixed(2)} sub={current.label} color={tone} alt />
+          <StatCard label="Weekly avg this month" value={km1(thisMonth / weeksIn)} />
+        </View>
+
+        {records.length ? (
+          <>
+            <H2>Personal bests</H2>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+              {records.slice(0, 6).map((r, i) => (
+                <StatCard key={r.key} label={r.label} value={r.value} sub={dayLabel(r.date)} color={C.coral} alt={i % 2 === 1} />
+              ))}
+            </View>
+          </>
+        ) : null}
+
+        <H2>Charts</H2>
 
         <View style={card}>
           <CardTitle title="Training load" period="Last 8 weeks · 7-day km vs the 28-day average" />
@@ -211,7 +265,7 @@ export default function Stats({ onBack }: { onBack: () => void }) {
               width={w}
               height={150}
               unit="ACWR"
-              color={C.coral}
+              color="#d93535"
               minSlot={48}
               showPointLabels
               bands={BANDS}
@@ -329,7 +383,7 @@ function Trend({
         width={width}
         height={140}
         unit={unit}
-        color={sport === 'bike' ? '#f0f0f0' : sport === 'swim' ? COL.swim : C.coral}
+        color={sport === 'bike' ? '#f0f0f0' : sport === 'swim' ? COL.swim : '#d93535'}
         fill
         reverse={sport !== 'bike'}
         showPointLabels

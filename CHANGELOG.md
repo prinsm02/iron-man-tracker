@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.1.0 (Mzansi Go)
+
+- New name: **Mzansi Go**, with the race-bib logo now reading MG.
+- Opening screen credits the developer and the first version date (14 Nov 2026).
+- GitHub upload fixed: plain-JS UTF-8 (no TextEncoder/TextDecoder), accepts a pasted repo link, clear "Not ready" status in Settings, real error messages. Upload now works even when automatic upload is off.
+- Automatic upload: when you tap Save on a session, or 5 minutes after finishing, and when the app opens.
+- Summary map is fixed (no drag, zoom or rotate), so swiping over it scrolls the pages. Tap it to play the route coloured by pace: red fast, yellow medium, green slow.
+- Route name fills in from the suburbs (or roads) along the way; still editable.
+- Session type is a clear red pill, saved the moment you tap it, and shown next to the sport.
+- Home: Run, Bike and Swim each get their own tile with a colour line; sport switch moved up, away from Start; initials under the profile picture; swipe right for History (no link).
+- Stats look like the Running Dashboard: hero numbers, load cards with the red bar, personal bests, smooth red lines with white glowing points, red gradient bars with a white dot.
+- Only "Swim" anywhere: Settings and set-up show one Swim; pool or open water is chosen when starting.
+
 ## 1.0.4
 
 - 3-second logo screen when the app opens.

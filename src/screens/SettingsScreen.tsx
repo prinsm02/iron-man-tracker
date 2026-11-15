@@ -3,8 +3,8 @@ import { ScrollView, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BackBar, Btn, C, Chip, T } from '../ui/kit.tsx';
 import { getSettings, getToken, saveSettings, setToken, type Settings } from '../lib/settings.ts';
-import { syncAll, testConnection } from '../lib/github.ts';
-import { SPORT_LABEL, type Sport } from '../lib/geo.ts';
+import { cleanRepo, setupProblem, syncAll, testConnection } from '../lib/github.ts';
+import type { Sport } from '../lib/geo.ts';
 
 export default function SettingsScreen({ onBack, onRerunWizard }: { onBack: () => void; onRerunWizard: () => void }) {
   const [s, setS] = useState<Settings>(getSettings());
@@ -14,7 +14,9 @@ export default function SettingsScreen({ onBack, onRerunWizard }: { onBack: () =
   const [busy, setBusy] = useState<'test' | 'upload' | null>(null);
   const [weightText, setWeightText] = useState(String(getSettings().weightKg));
 
+  const [problem, setProblem] = useState('');
   useEffect(() => { getToken().then((t) => setHasToken(!!t)); }, []);
+  useEffect(() => { setupProblem().then(setProblem); }, [s.githubRepo, hasToken]);
   const set = async (p: Partial<Settings>) => setS(await saveSettings(p));
 
   const Row = ({ label, hint, value, onChange }: { label: string; hint?: string; value: boolean; onChange: (v: boolean) => void }) => (
@@ -36,8 +38,12 @@ export default function SettingsScreen({ onBack, onRerunWizard }: { onBack: () =
     </View>
   );
 
-  const toggleSport = (sp: Sport) => {
-    const sports = s.sports.includes(sp) ? s.sports.filter((x) => x !== sp) : [...s.sports, sp];
+  // One Swim: it switches open water and pool together (which one is picked when you start a swim).
+  const SWIM: Sport[] = ['swim_open', 'swim_pool'];
+  const has = (k: 'run' | 'bike' | 'swim') => (k === 'swim' ? SWIM.some((x) => s.sports.includes(x)) : s.sports.includes(k));
+  const toggleSport = (k: 'run' | 'bike' | 'swim') => {
+    const group: Sport[] = k === 'swim' ? SWIM : [k];
+    const sports = has(k) ? s.sports.filter((x) => !group.includes(x)) : [...s.sports.filter((x) => !group.includes(x)), ...group];
     if (sports.length) set({ sports });
   };
 
@@ -49,8 +55,8 @@ export default function SettingsScreen({ onBack, onRerunWizard }: { onBack: () =
 
         <Text style={[T.label, { marginTop: 20, color: C.gold }]}>Sports</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
-          {(['run', 'bike', 'swim_open', 'swim_pool'] as Sport[]).map((sp) => (
-            <Chip key={sp} label={SPORT_LABEL[sp]} selected={s.sports.includes(sp)} onPress={() => toggleSport(sp)} />
+          {(['run', 'bike', 'swim'] as const).map((k) => (
+            <Chip key={k} label={k === 'run' ? 'Run' : k === 'bike' ? 'Bike' : 'Swim'} selected={has(k)} onPress={() => toggleSport(k)} />
           ))}
         </View>
 
@@ -80,11 +86,13 @@ export default function SettingsScreen({ onBack, onRerunWizard }: { onBack: () =
         <TextInput value={s.bikeName} onChangeText={(t) => set({ bikeName: t })} placeholder="Bike name (goes into your cycling log)" placeholderTextColor={C.dim} style={input} />
 
         <Text style={[T.label, { marginTop: 24, color: C.gold }]}>GitHub results</Text>
-        <Row label="Upload finished sessions" value={s.syncEnabled} onChange={(v) => set({ syncEnabled: v })} />
-        <Text style={[T.small, { marginTop: 10 }]}>Private data repo (owner/name)</Text>
-        <TextInput value={s.githubRepo} onChangeText={(t) => set({ githubRepo: t })} autoCapitalize="none" autoCorrect={false} style={input} />
+        <Text style={[T.body, { marginTop: 8, color: problem ? C.warn : C.ok }]}>{problem ? `Not ready: ${problem}` : 'Ready to upload.'}</Text>
+        <Row label="Upload automatically" hint="When you tap Save on a session, or 5 minutes after finishing, and when the app opens" value={s.syncEnabled} onChange={(v) => set({ syncEnabled: v })} />
+        <Text style={[T.small, { marginTop: 10 }]}>1. Private data repo (owner/name)</Text>
+        <TextInput value={s.githubRepo} onChangeText={(t) => set({ githubRepo: t })} placeholder="owner/repo-name" placeholderTextColor={C.dim} autoCapitalize="none" autoCorrect={false} style={input} />
+        {s.githubRepo.trim() && !cleanRepo(s.githubRepo) ? <Text style={[T.small, { color: C.warn, marginTop: 6 }]}>Write it as owner/name, for example someone/my-training-data.</Text> : null}
         <Text style={[T.small, { marginTop: 10, lineHeight: 18 }]}>
-          Token {hasToken ? 'saved on this phone' : 'not set'}. Use a fine-grained GitHub token for that repo only, with Contents set to Read and write.
+          2. Token {hasToken ? 'saved on this phone' : 'not set'}. Use a fine-grained GitHub token for that repo only, with Contents set to Read and write.
         </Text>
         <TextInput value={token} onChangeText={setTok} placeholder={hasToken ? 'Paste a new token to replace it' : 'Paste token'} placeholderTextColor={C.dim}
           autoCapitalize="none" autoCorrect={false} secureTextEntry style={input} />
@@ -98,7 +106,7 @@ export default function SettingsScreen({ onBack, onRerunWizard }: { onBack: () =
         </View>
         <Btn title="UPLOAD NOW" kind="ghost" style={{ marginTop: 10 }} disabled={busy != null} onPress={async () => {
           setBusy('upload'); setMsg('Uploading…');
-          try { setMsg((await syncAll()).message); } finally { setBusy(null); }
+          try { setMsg((await syncAll({ manual: true })).message); } finally { setBusy(null); setupProblem().then(setProblem); }
         }} />
         {msg ? <Text style={[T.body, { marginTop: 10, color: C.goldSoft }]}>{msg}</Text> : null}
 

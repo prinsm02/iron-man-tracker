@@ -185,7 +185,7 @@ async function startGps(sport: Sport) {
     activityType: Location.ActivityType.Fitness,
     pausesUpdatesAutomatically: false,
     showsBackgroundLocationIndicator: true,
-    foregroundService: { notificationTitle: 'Iron Man', notificationBody: 'Recording your session' },
+    foregroundService: { notificationTitle: 'Mzansi Go', notificationBody: 'Recording your session' },
   };
   try {
     if (await Location.hasStartedLocationUpdatesAsync(TASK)) await Location.stopLocationUpdatesAsync(TASK);

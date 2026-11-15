@@ -166,7 +166,7 @@ test('CSV: run row matches the running log column count and quotes commas', () =
   const r = csvRow(meta, s);
   assert.equal(r.file, 'runs.csv');
   assert.match(r.line, /^\d\d \w{3} 2026,Sat,"River, loop",5\.00,0:30:00,6:00,/);
-  assert.match(r.line, /,Easy,6:00,6:00,6:00,6:00,6:00,"felt ""good""",,,,Iron Man app$/);
+  assert.match(r.line, /,Easy,6:00,6:00,6:00,6:00,6:00,"felt ""good""",,,,Mzansi Go app$/);
   // parse-aware column count
   const cols = r.line.match(/("([^"]|"")*"|[^,]*)(,|$)/g)!.filter((c) => c !== '').length;
   assert.equal(cols, r.header.split(',').length);

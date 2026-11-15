@@ -9,7 +9,33 @@ const GUTTER = 44;
 const RIGHT = 14;
 const TOP = 22;
 const BOTTOM = 22;
-const GRID = '#2a2a2a';
+const GRID = '#1f1f1f';
+const LINE_RED = '#d93535';
+
+/** Smooth line through the points (like the dashboard's tension 0.3 curves). */
+function smooth(pts: { x: number; y: number }[]): string {
+  if (!pts.length) return '';
+  let d = `M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)} `;
+  const k = 0.3;
+  for (let i = 1; i < pts.length; i++) {
+    const p0 = pts[i - 2] ?? pts[i - 1], p1 = pts[i - 1], p2 = pts[i], p3 = pts[i + 1] ?? p2;
+    const c1x = p1.x + (p2.x - p0.x) * k / 2, c1y = p1.y + (p2.y - p0.y) * k / 2;
+    const c2x = p2.x - (p3.x - p1.x) * k / 2, c2y = p2.y - (p3.y - p1.y) * k / 2;
+    d += `C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)} `;
+  }
+  return d;
+}
+
+/** The dashboard's white point with its soft white glow. */
+function GlowDot({ x, y, on }: { x: number; y: number; on?: boolean }) {
+  return (
+    <G>
+      <Circle cx={x} cy={y} r={on ? 14 : 9} fill="rgba(255,255,255,0.10)" />
+      <Circle cx={x} cy={y} r={on ? 9 : 6.5} fill="rgba(255,255,255,0.25)" />
+      <Circle cx={x} cy={y} r={on ? 6 : 4.5} fill="#fff" />
+    </G>
+  );
+}
 
 export type ChartPoint = {
   y: number | null;
@@ -207,7 +233,7 @@ function yMapper(plotH: number, domain: Domain, reverse: boolean) {
 }
 
 export default function Chart({
-  points, width, height = 140, unit, color = C.coral, fill = false, reverse = false,
+  points, width, height = 140, unit, color = LINE_RED, fill = false, reverse = false,
   showPointLabels = false, minSlot = 0, yFormat = defaultFormat, yDomain, bands,
   id = 'line', active, onActive,
 }: {
@@ -225,18 +251,18 @@ export default function Chart({
   const baseline = TOP + height;
 
   let d = '';
-  let started = false;
   let firstX = 0;
   let lastX = 0;
+  let seg: { x: number; y: number }[] = [];
+  const flush = () => { if (seg.length) d += smooth(seg); seg = []; };
   points.forEach((p, i) => {
-    if (p.y == null || !Number.isFinite(p.y)) { started = false; return; }
+    if (p.y == null || !Number.isFinite(p.y)) { flush(); return; }
     const x = GUTTER + slot * i + slot / 2;
-    const y = yOf(p.y);
-    d += `${started ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)} `;
-    if (!started) firstX = x;
+    if (!d && !seg.length) firstX = x;
     lastX = x;
-    started = true;
+    seg.push({ x, y: yOf(p.y) });
   });
+  flush();
   const continuous = fill && points.length > 1 && points.every((p) => p.y != null && Number.isFinite(p.y));
   const area = continuous ? `${d} L${lastX.toFixed(1)},${baseline} L${firstX.toFixed(1)},${baseline} Z` : '';
   const chosen = shown != null ? points[shown] : null;
@@ -265,7 +291,7 @@ export default function Chart({
         })}
         <Axis domain={domain} yOf={yOf} yFormat={yFormat} plotW={plotW} plotH={height} slot={slot} n={n} everyLabel={minSlot > 0} labels={points.map((p) => p.xLabel)} />
         {area ? <Path d={area} fill={`url(#${gid})`} /> : null}
-        {d ? <Path d={d} stroke={color} strokeWidth={2.5} fill="none" strokeLinejoin="round" strokeLinecap="round" /> : null}
+        {d ? <Path d={d} stroke={color} strokeWidth={3} fill="none" strokeLinejoin="round" strokeLinecap="round" /> : null}
         {points.map((p, i) => {
           if (p.y == null || !Number.isFinite(p.y)) return null;
           const x = GUTTER + slot * i + slot / 2;
@@ -273,10 +299,9 @@ export default function Chart({
           const on = shown === i;
           return (
             <G key={i}>
-              {on ? <Circle cx={x} cy={y} r={11} fill="rgba(255,255,255,0.28)" /> : null}
-              <Circle cx={x} cy={y} r={on ? 5.5 : 3.5} fill="#fff" stroke={on ? '#fff' : color} strokeWidth={on ? 0 : 1.5} />
+              <GlowDot x={x} y={y} on={on} />
               {showPointLabels && p.valueLabel ? (
-                <SvgText x={x} y={Math.max(11, y - 12)} fill={C.text} fontSize={10} fontWeight="700" textAnchor="middle">{p.valueLabel}</SvgText>
+                <SvgText x={x} y={Math.max(11, y - 14)} fill={C.text} fontSize={10} fontWeight="700" textAnchor="middle">{p.valueLabel}</SvgText>
               ) : null}
             </G>
           );
@@ -302,6 +327,7 @@ export function StackedBars({
   const yOf = yMapper(height, domain, false);
   const barW = Math.max(4, Math.min(slot * 0.62, 28));
   const chosen = shown != null ? bars[shown] : null;
+  const gid = 'bar' + React.useId().replace(/[^a-zA-Z0-9]/g, '');
 
   return (
     <View>
@@ -311,6 +337,12 @@ export function StackedBars({
         scroll onPick={pick} onClear={clear}
         callout={chosen ? <Callout title={chosen.calloutTitle} body={chosen.calloutBody} /> : null}
       >
+        <Defs>
+          <LinearGradient id={gid} x1="0" y1="1" x2="0" y2="0">
+            <Stop offset="0" stopColor="#c02020" stopOpacity={1} />
+            <Stop offset="1" stopColor="#e84040" stopOpacity={1} />
+          </LinearGradient>
+        </Defs>
         <Axis domain={domain} yOf={yOf} yFormat={defaultFormat} plotW={plotW} plotH={height} slot={slot} n={n} everyLabel labels={bars.map((b) => b.xLabel)} />
         {bars.map((b, i) => {
           const x = GUTTER + slot * i + slot / 2;
@@ -326,12 +358,11 @@ export function StackedBars({
                   const y1 = yOf(acc);
                   const h = Math.abs(y1 - y0);
                   if (h < 0.4) return null;
-                  return <Rect key={seg.label} x={x - barW / 2} y={Math.min(y0, y1)} width={barW} height={h} fill={seg.color} />;
+                  return <Rect key={seg.label} x={x - barW / 2} y={Math.min(y0, y1)} width={barW} height={h} rx={2} fill={seg.label === 'Run' ? `url(#${gid})` : seg.color} />;
                 })}
               </G>
-              {shown === i ? <Circle cx={x} cy={yTop} r={11} fill="rgba(255,255,255,0.28)" /> : null}
-              {shown === i ? <Circle cx={x} cy={yTop} r={5.5} fill="#fff" /> : null}
-              <SvgText x={x} y={Math.max(11, yTop - 12)} fill={totals[i] > 0 ? C.text : C.dim} fontSize={10} fontWeight="700" textAnchor="middle">
+              {totals[i] > 0 ? <GlowDot x={x} y={yTop} on={shown === i} /> : null}
+              <SvgText x={x} y={Math.max(11, yTop - 15)} fill={totals[i] > 0 ? C.text : C.dim} fontSize={10} fontWeight="700" textAnchor="middle">
                 {formatTotal(totals[i])}
               </SvgText>
             </G>

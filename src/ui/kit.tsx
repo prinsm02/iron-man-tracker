@@ -30,6 +30,13 @@ export const C = {
   good: '#44dd88',
 };
 
+/** Sport colours, as on the dashboard: run red, ride white, swim blue. */
+export const SPORT_COLOR = { run: '#ff6b6b', bike: '#f0f0f0', swim: '#5994f0' } as const;
+
+/** "First Last" -> "FL". */
+export const initialsOf = (name: string) =>
+  (name || '').trim().split(/\s+/).filter(Boolean).map((w) => w[0]).join('').slice(0, 2).toUpperCase() || 'ME';
+
 const glow = { textShadowColor: 'rgba(217,53,53,0.35)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 18 } as const;
 
 export const T = StyleSheet.create({
@@ -138,6 +145,20 @@ export function Chip({ label, selected, onPress }: { label: string; selected: bo
   );
 }
 
+/** Filled pill for a choice that must be obvious (session type): red when chosen. */
+export function Pill({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} hitSlop={4}
+      style={({ pressed }) => ({
+        paddingVertical: 9, paddingHorizontal: 16, borderRadius: 999, borderWidth: 1,
+        borderColor: selected ? C.red : C.line, backgroundColor: selected ? C.red : C.card2, opacity: pressed ? 0.7 : 1,
+        shadowColor: C.red, shadowOpacity: selected ? 0.5 : 0, shadowRadius: 10, shadowOffset: { width: 0, height: 0 },
+      })}>
+      <Text style={{ color: selected ? '#fff' : C.dim, fontSize: 15, fontWeight: selected ? '700' : '600' }}>{selected ? `✓ ${label}` : label}</Text>
+    </Pressable>
+  );
+}
+
 export function Stat({ label, value, unit, big, style, color }: { label: string; value: string; unit?: string; big?: boolean; style?: ViewStyle; color?: string }) {
   return (
     <View style={[{ flex: 1, paddingVertical: 6 }, style]}>
@@ -173,7 +194,7 @@ export function BackBar({ onBack, title }: { onBack: () => void; title?: string 
 
 /** Round profile picture (the user's photo, or their initials). */
 export function Avatar({ size = 36, uri, name }: { size?: number; uri?: string; name?: string }) {
-  const initials = (name || 'Me').split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+  const initials = initialsOf(name ?? '');
   return (
     <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
       {uri ? <Image source={{ uri }} style={{ width: size, height: size }} /> : <Text style={{ color: C.coral, fontWeight: '700', fontSize: size * 0.38 }}>{initials}</Text>}

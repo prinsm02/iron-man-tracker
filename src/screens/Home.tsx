@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Alert, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Avatar, C, Hero, Segmented, T } from '../ui/kit.tsx';
+import { Avatar, C, Hero, Segmented, SPORT_COLOR, T, initialsOf } from '../ui/kit.tsx';
 import SidePanel, { type PanelTarget } from '../ui/SidePanel.tsx';
 import { getSettings } from '../lib/settings.ts';
 import { countdownLabel, upcoming } from '../lib/events.ts';
@@ -58,11 +58,14 @@ export default function Home({
     ]);
   };
 
-  const Big = ({ label, km }: { label: string; km: number }) => (
-    <View style={{ flex: 1 }}>
-      <Text style={T.label}>{label}</Text>
-      <Text style={[T.big, { fontSize: 34, marginTop: 2 }]} numberOfLines={1} adjustsFontSizeToFit>{km.toFixed(1)}</Text>
-      <Text style={[T.small, { marginTop: -2 }]}>km</Text>
+  // One tile per sport with its own colour line on top, so the three numbers never run together.
+  const Tile = ({ label, km, monthKm, color, alt }: { label: string; km: number; monthKm: number; color: string; alt?: boolean }) => (
+    <View style={{ flex: 1, borderRadius: 10, borderWidth: 1, borderColor: C.line, borderTopWidth: 2, borderTopColor: color, backgroundColor: alt ? '#0f0f0f' : 'rgba(26,26,26,0.85)', paddingVertical: 10, paddingHorizontal: 10 }}>
+      <Text style={[T.label, { color }]}>{label}</Text>
+      <Text style={[T.big, { fontSize: 30, marginTop: 2, color }]} numberOfLines={1} adjustsFontSizeToFit>{km.toFixed(1)}</Text>
+      <Text style={T.small}>km this week</Text>
+      <View style={{ height: 1, backgroundColor: C.line, marginVertical: 7 }} />
+      <Text style={[T.num, { fontSize: 13 }]} numberOfLines={1}>{monthKm.toFixed(0)} <Text style={T.small}>km month</Text></Text>
     </View>
   );
 
@@ -72,7 +75,7 @@ export default function Home({
       <View style={{ flex: 1, padding: 20, gap: 16 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
           <Pressable onPress={() => setPanel(true)} hitSlop={14} accessibilityLabel="Open menu"><Text style={{ color: C.text, fontSize: 22 }}>☰</Text></Pressable>
-          <Text style={[T.h2, { fontSize: 17 }]}>Iron Man</Text>
+          <Text style={[T.h2, { fontSize: 17 }]}>Mzansi <Text style={{ color: C.red }}>Go</Text></Text>
         </View>
 
         {recording ? (
@@ -93,15 +96,13 @@ export default function Home({
                 </View>
               ) : null}
             </View>
-            <View style={{ flexDirection: 'row', marginTop: 10, gap: 8 }}>
-              <Big label="Run" km={week.run} />
-              <Big label="Bike" km={week.bike} />
-              <Big label="Swim" km={week.swim} />
+            <View style={{ flexDirection: 'row', marginTop: 12, gap: 8 }}>
+              <Tile label="Run" km={week.run} monthKm={month.run} color={SPORT_COLOR.run} />
+              <Tile label="Bike" km={week.bike} monthKm={month.bike} color={SPORT_COLOR.bike} alt />
+              <Tile label="Swim" km={week.swim} monthKm={month.swim} color={SPORT_COLOR.swim} />
             </View>
-            <View style={{ height: 1, backgroundColor: C.line, marginVertical: 12 }} />
-            <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-              <Text style={[T.label, { width: 92 }]}>{new Date().toLocaleDateString('en-ZA', { month: 'long' })}</Text>
-              <Text style={[T.small, { flex: 1 }]} numberOfLines={1}>Run {month.run.toFixed(0)} · Bike {month.bike.toFixed(0)} · Swim {month.swim.toFixed(0)}</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
+              <Text style={T.label}>{new Date().toLocaleDateString('en-ZA', { month: 'long' })} total</Text>
               <Text style={{ color: C.text, fontSize: 13, fontWeight: '700' }}>{month.all.toFixed(1)} km</Text>
             </View>
           </Hero>
@@ -114,8 +115,13 @@ export default function Home({
           </Pressable>
         ) : null}
 
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 22 }}>
-          {!recording ? <Segmented options={sports.map((sp) => ({ value: sp, label: TAB[sp] }))} value={sport} onChange={setSport} /> : null}
+        {!recording ? (
+          <View style={{ marginTop: 4 }}>
+            <Segmented options={sports.map((sp) => ({ value: sp, label: TAB[sp] }))} value={sport} onChange={setSport} />
+          </View>
+        ) : null}
+
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <Pressable
             onPress={recording ? onBackToLive : confirmStart}
             style={({ pressed }) => ({
@@ -131,14 +137,16 @@ export default function Home({
           </Pressable>
         </View>
 
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Pressable onPress={onProfile} hitSlop={10} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 }}>
-            <Avatar uri={s.photoUri} name={s.name} />
-            {s.name ? null : <Text style={{ color: C.text, fontSize: 15, fontWeight: '600' }}>Set up profile</Text>}
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+          <Pressable onPress={onProfile} hitSlop={10} style={{ alignItems: 'center', gap: 4, minWidth: 48 }}>
+            <Avatar size={40} uri={s.photoUri} name={s.name} />
+            <Text style={{ color: C.text, fontSize: 12, fontWeight: '700', letterSpacing: 1 }}>{s.name ? initialsOf(s.name) : 'Profile'}</Text>
           </Pressable>
-          <View style={{ flexDirection: 'row', gap: 18 }}>
-            <Pressable onPress={onHistory} hitSlop={12}><Text style={{ color: C.text, fontSize: 15, fontWeight: '600' }}>History ›</Text></Pressable>
+          <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center', paddingBottom: 10 }} accessibilityLabel="Swipe right for History">
+            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: C.line }} />
+            <View style={{ width: 16, height: 6, borderRadius: 3, backgroundColor: C.red }} />
           </View>
+          <View style={{ minWidth: 48 }} />
         </View>
         {syncNote ? <Text style={[T.small, { textAlign: 'center', marginTop: -8 }]}>{syncNote}</Text> : null}
       </View>

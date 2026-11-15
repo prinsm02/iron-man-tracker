@@ -6,40 +6,13 @@ import type { Stats } from './geo.ts';
 import { getPoints, markSynced, unsynced } from './db.ts';
 import { getSettings, getToken } from './settings.ts';
 
-const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-
-export function toBase64(text: string): string {
-  const bytes = new TextEncoder().encode(text);
-  let out = '';
-  for (let i = 0; i < bytes.length; i += 3) {
-    const n = (bytes[i] << 16) | ((bytes[i + 1] ?? 0) << 8) | (bytes[i + 2] ?? 0);
-    out += B64[(n >> 18) & 63] + B64[(n >> 12) & 63];
-    out += i + 1 < bytes.length ? B64[(n >> 6) & 63] : '=';
-    out += i + 2 < bytes.length ? B64[n & 63] : '=';
-  }
-  return out;
-}
-
-export function fromBase64(b64: string): string {
-  const clean = b64.replace(/[^A-Za-z0-9+/]/g, '');
-  const bytes: number[] = [];
-  for (let i = 0; i < clean.length; i += 4) {
-    const n =
-      (B64.indexOf(clean[i]) << 18) |
-      (B64.indexOf(clean[i + 1]) << 12) |
-      ((B64.indexOf(clean[i + 2] ?? 'A') & 63) << 6) |
-      (B64.indexOf(clean[i + 3] ?? 'A') & 63);
-    bytes.push((n >> 16) & 255);
-    if (i + 2 < clean.length) bytes.push((n >> 8) & 255);
-    if (i + 3 < clean.length) bytes.push(n & 255);
-  }
-  return new TextDecoder().decode(new Uint8Array(bytes));
-}
+export { cleanRepo, fromBase64, toBase64 } from './b64.ts';
+import { cleanRepo, fromBase64, toBase64 } from './b64.ts';
 
 const encPath = (p: string) => p.split('/').map(encodeURIComponent).join('/');
 
 async function api(token: string, method: string, path: string, body?: unknown) {
-  const repo = getSettings().githubRepo.trim();
+  const repo = cleanRepo(getSettings().githubRepo);
   const res = await fetch(`https://api.github.com/repos/${repo}/contents/${encPath(path)}`, {
     method,
     headers: {
@@ -56,7 +29,7 @@ async function api(token: string, method: string, path: string, body?: unknown) 
 async function getFile(token: string, path: string): Promise<{ sha: string; text: string } | null> {
   const res = await api(token, 'GET', path);
   if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`GitHub ${res.status} reading ${path}`);
+  if (!res.ok) throw new Error(explain(res.status, `reading ${path}`));
   const j = await res.json();
   return { sha: j.sha, text: fromBase64(j.content) };
 }
@@ -64,7 +37,7 @@ async function getFile(token: string, path: string): Promise<{ sha: string; text
 async function putFile(token: string, path: string, text: string, message: string, sha?: string) {
   const res = await api(token, 'PUT', path, { message, content: toBase64(text), sha });
   if (!res.ok) {
-    const err = new Error(`GitHub ${res.status} writing ${path}`) as Error & { status?: number };
+    const err = new Error(explain(res.status, `writing ${path}`)) as Error & { status?: number };
     err.status = res.status;
     throw err;
   }
@@ -95,37 +68,69 @@ async function appendCsv(token: string, path: string, header: string, line: stri
   throw new Error(`Could not update ${path} (conflict)`);
 }
 
-export async function testConnection(): Promise<string> {
-  const token = await getToken();
-  if (!token) return 'No token saved yet.';
-  const repo = getSettings().githubRepo.trim();
-  const res = await fetch(`https://api.github.com/repos/${repo}`, {
-    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' },
-  });
-  if (res.status === 200) {
-    const j = await res.json();
-    return j.private ? `Connected to ${repo} (private).` : `Connected to ${repo}, but it is PUBLIC. Make it private.`;
-  }
-  if (res.status === 404) return `Repo ${repo} not found, or the token cannot see it.`;
-  if (res.status === 401) return 'Token rejected. Make a new one.';
-  return `GitHub answered ${res.status}.`;
+function explain(status: number, what: string): string {
+  if (status === 401) return `GitHub said the token is wrong or expired (401) ${what}. Make a new token.`;
+  if (status === 403) return `The token may not write to this repo (403) ${what}. Give it Contents: Read and write.`;
+  if (status === 404) return `Repo not found, or the token cannot see it (404) ${what}.`;
+  if (status === 409) return `GitHub conflict (409) ${what}. It will retry.`;
+  if (status === 422) return `GitHub refused the file (422) ${what}.`;
+  return `GitHub answered ${status} ${what}.`;
 }
+
+/** What is still missing before uploads can work, or '' when ready. */
+export async function setupProblem(): Promise<string> {
+  if (!cleanRepo(getSettings().githubRepo)) return 'Add your private data repo (owner/name) in Settings > GitHub results.';
+  if (!(await getToken())) return 'Save a GitHub token in Settings > GitHub results.';
+  return '';
+}
+
+export async function testConnection(): Promise<string> {
+  const problem = await setupProblem();
+  if (problem) return problem;
+  const token = (await getToken())!;
+  const repo = cleanRepo(getSettings().githubRepo);
+  try {
+    const res = await fetch(`https://api.github.com/repos/${repo}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' },
+    });
+    if (res.status === 200) {
+      const j = await res.json();
+      const canWrite = j.permissions ? j.permissions.push !== false : true;
+      if (!canWrite) return `Connected to ${repo}, but the token can only read. Give it Contents: Read and write.`;
+      return j.private ? `Connected to ${repo} (private). Uploads are ready.` : `Connected to ${repo}, but it is PUBLIC. Make it private.`;
+    }
+    return explain(res.status, 'checking the repo');
+  } catch {
+    return 'No internet connection. Try again with signal.';
+  }
+}
+
+/** Sessions wait this long after finishing (so you can still name them) before the automatic upload. */
+export const AUTO_UPLOAD_DELAY_MS = 5 * 60 * 1000;
 
 let running = false;
 
-/** Upload every finished session that is not on GitHub yet. Safe to call often. */
-export async function syncAll(): Promise<{ done: number; failed: number; message: string }> {
+/**
+ * Upload every finished session that is not on GitHub yet. Safe to call often.
+ * manual = the Upload button: runs even when automatic upload is off, and sends brand-new sessions straight away.
+ * now = the id of a session that was just saved, so it goes up without waiting.
+ */
+export async function syncAll(opts: { manual?: boolean; now?: string } = {}): Promise<{ done: number; failed: number; waiting: number; message: string }> {
   const s = getSettings();
-  if (!s.syncEnabled) return { done: 0, failed: 0, message: 'Sync is off.' };
-  if (running) return { done: 0, failed: 0, message: 'Already syncing.' };
-  const token = await getToken();
-  if (!token) return { done: 0, failed: 0, message: 'No GitHub token in Settings.' };
+  if (!opts.manual && !s.syncEnabled) return { done: 0, failed: 0, waiting: 0, message: '' };
+  const problem = await setupProblem();
+  if (problem) return { done: 0, failed: 0, waiting: 0, message: opts.manual ? problem : '' };
+  if (running) return { done: 0, failed: 0, waiting: 0, message: 'Already uploading.' };
+  const token = (await getToken())!;
   running = true;
   let done = 0;
   let failed = 0;
+  let waiting = 0;
   let last = '';
   try {
     for (const row of unsynced()) {
+      const fresh = row.ended_at != null && Date.now() - row.ended_at < AUTO_UPLOAD_DELAY_MS;
+      if (!opts.manual && fresh && row.id !== opts.now) { waiting++; continue; }
       try {
         const meta: SessionMeta = JSON.parse(row.meta!);
         const stats: Stats = JSON.parse(row.stats!);
@@ -146,12 +151,18 @@ export async function syncAll(): Promise<{ done: number; failed: number; message
         done++;
       } catch (e) {
         failed++;
-        last = String((e as Error).message ?? e);
+        const m = String((e as Error).message ?? e);
+        last = /network request failed/i.test(m) ? 'No internet connection.' : m;
         markSynced(row.id, false, last);
       }
     }
   } finally {
     running = false;
   }
-  return { done, failed, message: failed ? `${done} uploaded, ${failed} failed: ${last}` : `${done} uploaded.` };
+  const message = failed
+    ? `${done} uploaded, ${failed} failed: ${last}`
+    : done
+      ? `${done} session${done === 1 ? '' : 's'} uploaded to GitHub.`
+      : opts.manual ? 'Everything is already on GitHub.' : '';
+  return { done, failed, waiting, message };
 }

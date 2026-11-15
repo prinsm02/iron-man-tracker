@@ -18,7 +18,7 @@ export default function SidePanel({ open, onClose, onGo }: { open: boolean; onCl
     { key: 'events', label: 'Events', sub: s.events.length ? `${s.events.length} of yours + what is coming up` : 'Your races + what is coming up' },
     { key: 'stats', label: 'Stats', sub: 'Charts of your training' },
     { key: 'history', label: 'History', sub: 'Every session' },
-    { key: 'sync', label: 'Upload now', sub: s.syncEnabled ? 'Send new sessions to GitHub' : 'GitHub sync is off' },
+    { key: 'sync', label: 'Upload now', sub: 'Send new sessions to GitHub now' },
     { key: 'settings', label: 'Settings', sub: 'Live screen, voice, GPS, GitHub' },
   ];
   return (
@@ -28,7 +28,7 @@ export default function SidePanel({ open, onClose, onGo }: { open: boolean; onCl
           <Pressable style={{ flex: 1 }} onPress={() => {}}>
             <SafeAreaView style={{ flex: 1 }}>
               <View style={{ padding: 20, borderBottomWidth: 1, borderColor: C.line }}>
-                <Text numberOfLines={1} style={[T.h2, { fontSize: 17 }]}>{s.name || 'Iron Man'}</Text>
+                <Text numberOfLines={1} style={[T.h2, { fontSize: 17 }]}>{s.name || 'Mzansi Go'}</Text>
                 <Text numberOfLines={1} style={T.small}>{s.weightKg} kg{s.bikeName ? ` · ${s.bikeName}` : ''}</Text>
               </View>
               {items.map((it) => (

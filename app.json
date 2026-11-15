@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Iron Man",
+    "name": "Mzansi Go",
     "slug": "iron-man-tracker",
-    "version": "1.0.4",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -24,10 +24,10 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Iron Man records your run, ride or swim route while the screen is locked.",
-          "locationWhenInUsePermission": "Iron Man uses your location to record your route.",
+          "locationAlwaysAndWhenInUsePermission": "Mzansi Go records your run, ride or swim route while the screen is locked.",
+          "locationWhenInUsePermission": "Mzansi Go uses your location to record your route.",
           "isIosBackgroundLocationEnabled": true,
-          "motionUsagePermission": "Iron Man counts your steps to show your running cadence."
+          "motionUsagePermission": "Mzansi Go counts your steps to show your running cadence."
         }
       ],
       "expo-sqlite",
@@ -38,7 +38,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Iron Man uses a photo you choose as your profile picture. It stays on your phone.",
+          "photosPermission": "Mzansi Go uses a photo you choose as your profile picture. It stays on your phone.",
           "cameraPermission": false,
           "microphonePermission": false
         }

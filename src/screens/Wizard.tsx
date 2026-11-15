@@ -14,8 +14,12 @@ export default function Wizard({ onDone }: { onDone: () => void }) {
   const [page, setPage] = useState(0);
   const set = (p: Partial<Settings>) => setDraft((d) => ({ ...d, ...p }));
 
-  const toggleSport = (s: Sport) =>
-    set({ sports: draft.sports.includes(s) ? draft.sports.filter((x) => x !== s) : [...draft.sports, s] });
+  // Swim covers open water and pool together.
+  const toggleSport = (s: Sport) => {
+    const group: Sport[] = s === 'swim_open' || s === 'swim_pool' ? ['swim_open', 'swim_pool'] : [s];
+    const on = draft.sports.includes(s);
+    set({ sports: on ? draft.sports.filter((x) => !group.includes(x)) : [...draft.sports.filter((x) => !group.includes(x)), ...group] });
+  };
 
   const single = <V,>(opts: Opt<V>[], current: V, pick: (v: V) => void) =>
     opts.map((o) => <Choice key={String(o.value)} label={o.label} hint={o.hint} selected={current === o.value} onPress={() => pick(o.value)} />);
@@ -25,14 +29,14 @@ export default function Wizard({ onDone }: { onDone: () => void }) {
       title: 'Which sports do you train?',
       sub: 'Pick all that apply.',
       ok: draft.sports.length > 0,
-      body: SPORT_ORDER.map((s) => (
+      body: SPORT_ORDER.filter((s) => s !== 'swim_pool').map((s) => (
         <Choice key={s} multi label={SPORT_LABEL[s]} selected={draft.sports.includes(s)} onPress={() => toggleSport(s)}
-          hint={s === 'swim_open' ? 'Outdoor swim with GPS, phone in a dry bag' : s === 'swim_pool' ? 'Pool lengths entered by hand' : undefined} />
+          hint={s === 'swim_open' ? 'Open water with GPS, or pool lengths: you choose when you start' : undefined} />
       )),
     },
     {
       title: 'Which one do you do most?',
-      body: single(ordered(draft.sports).map((s) => ({ label: SPORT_LABEL[s], value: s })), draft.defaultSport, (v) => set({ defaultSport: v })),
+      body: single(ordered(draft.sports).filter((s) => s !== 'swim_pool').map((s) => ({ label: SPORT_LABEL[s], value: s })), draft.defaultSport, (v) => set({ defaultSport: v })),
     },
     {
       title: 'What should the live screen show?',
@@ -76,7 +80,7 @@ export default function Wizard({ onDone }: { onDone: () => void }) {
     {
       title: 'Location access',
       sub: 'Next, iPhone asks for location. Choose "Allow While Using App", then when it asks again choose "Change to Always Allow". "Always" is what lets the app record with the screen locked.',
-      body: <Text style={[T.small, { marginTop: 8 }]}>{'You can change this later in iPhone Settings, Iron Man, Location.'}</Text>,
+      body: <Text style={[T.small, { marginTop: 8 }]}>{'You can change this later in iPhone Settings, Mzansi Go, Location.'}</Text>,
     },
   ];
 

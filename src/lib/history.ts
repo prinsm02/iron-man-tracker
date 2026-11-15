@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { listFinished } from './db.ts';
 import { getSettings, getToken, saveSettings, type AppEvent } from './settings.ts';
 import AsyncStorage2 from '@react-native-async-storage/async-storage';
-import { fromBase64 } from './github.ts';
+import { cleanRepo, fromBase64 } from './b64.ts';
 import { mergeRows, parseHistoryCsv, type HistRow } from './records.ts';
 import type { Stats } from './geo.ts';
 import type { SessionMeta } from './export.ts';
@@ -31,7 +31,7 @@ let discover: DiscoverEvent[] = [];
 export const getDiscover = () => discover;
 
 async function getRepoFile(path: string): Promise<string | null> {
-  const repo = getSettings().githubRepo.trim();
+  const repo = cleanRepo(getSettings().githubRepo);
   const token = await getToken();
   if (!repo || !token) return null;
   try {
@@ -65,7 +65,7 @@ export async function refreshEvents() {
 
 /** Download history.csv from the private repo (silently does nothing when offline or not set up). */
 export async function refreshHistory(): Promise<number> {
-  const repo = getSettings().githubRepo.trim();
+  const repo = cleanRepo(getSettings().githubRepo);
   const token = await getToken();
   if (!repo || !token) return cached.length;
   try {

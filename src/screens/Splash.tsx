@@ -17,8 +17,12 @@ export default function Splash() {
       <Animated.View style={{ opacity: fade, transform: [{ scale }], alignItems: 'center', gap: 18 }}>
         <Image source={require('../../assets/icon.png')} style={{ width: 150, height: 150, borderRadius: 34 }} />
         <Text style={{ color: C.text, fontSize: 24, fontWeight: '800', fontStyle: 'italic', letterSpacing: 1 }}>
-          IRON <Text style={{ color: C.red }}>MAN</Text>
+          MZANSI <Text style={{ color: C.red }}>GO</Text>
         </Text>
+        <View style={{ alignItems: 'center', gap: 3, marginTop: -6 }}>
+          <Text style={{ color: C.dim, fontSize: 12, fontStyle: 'italic' }}>Developed by Matthew Prins</Text>
+          <Text style={{ color: '#555', fontSize: 11, fontStyle: 'italic' }}>First version 14 Nov 2026</Text>
+        </View>
       </Animated.View>
     </View>
   );
