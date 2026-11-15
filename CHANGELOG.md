@@ -1,8 +1,12 @@
 # Changelog
 
+## 1.1.1
+
+- Logo letters now read MGo (M black, G and o red), same race bib.
+
 ## 1.1.0 (Mzansi Go)
 
-- New name: **Mzansi Go**, with the race-bib logo now reading MG.
+- New name: **Mzansi Go**, with the race-bib logo now reading MG (MGo from 1.1.1).
 - Opening screen credits the developer and the first version date (14 Nov 2026).
 - GitHub upload fixed: plain-JS UTF-8 (no TextEncoder/TextDecoder), accepts a pasted repo link, clear "Not ready" status in Settings, real error messages. Upload now works even when automatic upload is off.
 - Automatic upload: when you tap Save on a session, or 5 minutes after finishing, and when the app opens.
